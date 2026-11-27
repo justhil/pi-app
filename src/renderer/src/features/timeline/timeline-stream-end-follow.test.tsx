@@ -212,4 +212,75 @@ describe('stream end + session switch-back follow behavior', () => {
     // 1500 + growth(6600 - 6000). The old snapshot formula would land on 700.
     expect(pane.scrollTop).toBe(1500 + 600)
   })
+
+  it('should_preserve_assistant_dom_tree_when_streaming_settles_and_when_text_follows_thinking', async () => {
+    await import('./markdown-view')
+    const userMsg: TimelineItem = {
+      id: 'u-1',
+      type: 'user-message',
+      text: 'Explain streaming stability',
+      timestamp: 1000,
+      sessionEntryId: 'eu-1',
+    } as TimelineItem
+    const thinkingOnlyAssistant: TimelineItem = {
+      id: 'a-1',
+      type: 'assistant-message',
+      text: '',
+      thinkingText: 'Checking rendering paths...',
+      timestamp: 1100,
+    } as TimelineItem
+
+    useUIStore.setState(
+      baseState({
+        timelineItems: [userMsg, thinkingOnlyAssistant],
+        historyTotalCount: 2,
+        historyLoadedCount: 2,
+        streamingAssistantId: 'a-1',
+      }),
+    )
+
+    const { container } = render(<Timeline />)
+    await flushRaf(2)
+
+    const thinkingNodeDuringThought = container.querySelector('[data-item-id="a-1"] button')
+    expect(thinkingNodeDuringThought).not.toBeNull()
+
+    // First prose token arrives after thinking: ThinkingChainBlock must stay mounted (no unmount/remount flash).
+    act(() => {
+      useUIStore.setState({
+        timelineItems: [
+          userMsg,
+          {
+            ...thinkingOnlyAssistant,
+            text: 'Here is the stable answer paragraph.',
+          } as TimelineItem,
+        ],
+      })
+    })
+    await flushRaf(3)
+
+    const thinkingNodeWithProse = container.querySelector('[data-item-id="a-1"] button')
+    const proseBodyWhileStreaming = container.querySelector('[data-item-id="a-1"] .timeline-text-body')
+    expect(proseBodyWhileStreaming).not.toBeNull()
+    expect(thinkingNodeWithProse).toBe(thinkingNodeDuringThought)
+
+    // Stream settles: MessageHoverShell must not wrap/unwrap proseBody and remount the whole assistant DOM subtree.
+    act(() => {
+      useUIStore.setState({
+        streamingAssistantId: null,
+        timelineItems: [
+          userMsg,
+          {
+            ...thinkingOnlyAssistant,
+            text: 'Here is the stable answer paragraph.',
+            sessionEntryId: 'ea-1',
+          } as TimelineItem,
+        ],
+      })
+    })
+    await flushRaf(2)
+
+    const proseBodyAfterSettle = container.querySelector('[data-item-id="a-1"] .timeline-text-body')
+    expect(proseBodyAfterSettle).toBe(proseBodyWhileStreaming)
+  })
 })

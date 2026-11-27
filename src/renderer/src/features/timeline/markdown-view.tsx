@@ -1,6 +1,6 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
-import { memo, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef } from 'react'
+import { createContext, memo, useContext, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { defaultUrlTransform, type Components, type ExtraProps, type UrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -15,7 +15,7 @@ import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
 import { useCodeHighlightRevision } from '@renderer/lib/theme/use-code-highlight-revision'
 import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
-import { splitOpenUIFence, splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
+import { splitOpenUIFence } from '@renderer/features/timeline/markdown-stream-split'
 import {
   advanceMarkdownBlocks,
   EMPTY_MARKDOWN_BLOCK_CACHE,
@@ -25,7 +25,6 @@ import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-pa
 import { MarkdownLink } from '@renderer/features/timeline/markdown-link'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
 import { MermaidBlock } from '@renderer/features/timeline/mermaid-block'
-import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
@@ -240,13 +239,11 @@ function CodeBlock({
   )
 }
 
-function buildRemarkPlugins(streaming?: boolean): Pluggable[] {
-  return [
-    remarkGfm,
-    remarkBreaks,
-    [remarkMath, { singleDollarTextMath: !streaming }],
-  ]
-}
+const REMARK_PLUGINS: Pluggable[] = [
+  remarkGfm,
+  remarkBreaks,
+  [remarkMath, { singleDollarTextMath: true }],
+]
 
 const REHYPE_PLUGINS: Pluggable[] = [
   [
@@ -261,56 +258,119 @@ const REHYPE_PLUGINS: Pluggable[] = [
   ],
 ]
 
-const STREAM_PLAIN_ONLY_MAX = 96
+type MarkdownRenderEnv = {
+  streaming: boolean
+  baseDirectory?: string
+}
 
-const SETTLED_REMARK_PLUGINS = buildRemarkPlugins(false)
+const MarkdownRenderContext = createContext<MarkdownRenderEnv>({ streaming: false })
+
+function MarkdownCode({ className: cn2, children: ch, ...rest }: ComponentPropsWithoutRef<'code'>) {
+  const { streaming } = useContext(MarkdownRenderContext)
+  const lang = /language-([\w-]+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
+  const rawText = String(ch ?? '')
+  const raw = rawText.replace(/\n$/, '')
+  const isInline = !cn2 && !rawText.includes('\n')
+  if (lang === 'math' || lang === 'latex' || lang === 'tex') {
+    return <FencedMathBlock code={raw} />
+  }
+  if (uiBlockLanguageFromClassName(cn2)) {
+    return <UIBlockHost raw={raw} streaming={streaming} />
+  }
+  if (lang === 'mermaid') {
+    return <MermaidBlock code={raw} streaming={streaming} />
+  }
+  if (isInline) {
+    return <code {...rest}>{ch}</code>
+  }
+  return (
+    <CodeBlock className={cn2} streaming={streaming}>
+      {ch}
+    </CodeBlock>
+  )
+}
+
+function MarkdownAnchor({ children: ch, node: _node, ...rest }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
+  const { baseDirectory } = useContext(MarkdownRenderContext)
+  return (
+    <MarkdownLink {...rest} baseDirectory={baseDirectory} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+      {ch}
+    </MarkdownLink>
+  )
+}
+
+/** Module-level stable component map: prevents unmount/remount flash when `streaming` toggles false. */
+const MARKDOWN_COMPONENTS: Components = {
+  code: MarkdownCode,
+  // pi-ui and mermaid blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
+  pre: ({ node, children: ch, ...rest }: ComponentPropsWithoutRef<'pre'> & ExtraProps) =>
+    isSelfRenderingPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
+  a: MarkdownAnchor,
+  table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (
+    <div data-pi-slot="timeline-table" className="my-3 max-w-full overflow-x-auto rounded-lg border border-border/55">
+      <table className="w-max min-w-[50%] max-w-full border-collapse text-[13px]">{ch}</table>
+    </div>
+  ),
+  th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => <th>{ch}</th>,
+  td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => <td>{ch}</td>,
+  img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
+    <img src={src} alt={alt} className="my-2.5 max-w-full rounded-lg border border-border/45" />
+  ),
+  blockquote: ({ children: ch }: ComponentPropsWithoutRef<'blockquote'>) => (
+    <blockquote>{ch}</blockquote>
+  ),
+  ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => <ul className="list-disc">{ch}</ul>,
+  ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => <ol className="list-decimal">{ch}</ol>,
+  p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => {
+    if (typeof ch === 'string') {
+      return (
+        <p>
+          <MarkdownPathText text={ch} />
+        </p>
+      )
+    }
+    return <p>{ch}</p>
+  },
+  hr: () => <hr />,
+}
 
 /** One top-level block of a streaming answer; unchanged blocks skip Markdown/KaTeX re-parsing. */
 const MarkdownBlock = memo(function MarkdownBlock({
   source,
-  components,
+  streaming = false,
 }: {
   source: string
-  components: Components
+  streaming?: boolean
 }) {
-  const markdown = useMemo(() => preprocessMarkdownMath(source, { streaming: false }), [source])
+  const markdown = useMemo(() => preprocessMarkdownMath(source, { streaming }), [source, streaming])
   return (
-    <ReactMarkdown remarkPlugins={SETTLED_REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS} urlTransform={markdownUrlTransform}>
       {markdown}
     </ReactMarkdown>
   )
 })
 
 /**
- * Committed streaming prefix rendered block by block: each frame re-parses only the growing tail
- * blocks instead of the whole answer (streaming cost no longer grows with answer length).
+ * Incremental top-level Markdown blocks: uses the exact micromark/remark-gfm/remark-math grammar
+ * so paragraphs, inline styles, lists, tables, and display math never split mid-structure.
  */
-function StreamingMarkdownBlocks({ source, components }: { source: string; components: Components }) {
+function StreamingMarkdownBlocks({ source, streaming }: { source: string; streaming: boolean }) {
   const cacheRef = useRef<MarkdownBlockCache>(EMPTY_MARKDOWN_BLOCK_CACHE)
   if (cacheRef.current.source !== source) {
     cacheRef.current = advanceMarkdownBlocks(cacheRef.current, source)
   }
+  const { blocks } = cacheRef.current
+  const lastIndex = blocks.length - 1
   return (
     <>
-      {cacheRef.current.blocks.map((block, index) => (
-        <MarkdownBlock key={index} source={block} components={components} />
+      {blocks.map((block, index) => (
+        <MarkdownBlock
+          key={index}
+          source={block}
+          streaming={streaming && index === lastIndex}
+        />
       ))}
     </>
-  )
-}
-
-/**
- * 流式尾部是否含块级语法（表格/标题/列表/引用/代码块）。
- * 这些结构在纯文本尾部会显示成原始符号，需要走 Markdown 渲染才能实时成型。
- */
-function tailHasBlockSyntax(text: string): boolean {
-  if (!text) return false
-  return (
-    /(^|\n)\s{0,3}#{1,6}\s/.test(text) || // 标题
-    /(^|\n)\s{0,3}>/.test(text) || // 引用
-    /(^|\n)\s{0,3}([-*+]\s|\d+[.)]\s)/.test(text) || // 列表
-    /(^|\n)\s{0,3}```/.test(text) || // 代码块
-    /(^|\n)\s{0,3}\|/.test(text) // 表格行（含分隔行，行首以 | 开头）
   )
 }
 
@@ -322,153 +382,49 @@ const MarkdownView = memo(function MarkdownView({
 }: {
   children: string
   className?: string
-  /** 流式：稳定前缀 Markdown + 尾部纯文本（减少整段重排，接近 ChatGPT） */
+  /** 流式：增量顶层块缓存，不跨句/跨表硬切，结束后原地保持同一棵块树避免卸载闪烁 */
   streaming?: boolean
   /** Relative links in a file preview resolve from that file's directory. */
   baseDirectory?: string
 }) {
-  const committedStableRef = useRef('')
+  const wasStreamingRef = useRef(!!streaming)
+  if (streaming) wasStreamingRef.current = true
+  const useBlockStreamTree = !!streaming || wasStreamingRef.current
 
-  useEffect(() => {
-    if (!streaming) committedStableRef.current = ''
-  }, [streaming])
-
-  const streamSplit = useMemo(
-    () => (streaming ? splitStreamingMarkdown(children) : { committed: '', tail: children }),
-    [children, streaming],
-  )
-
-  if (streaming && streamSplit.committed.length >= committedStableRef.current.length) {
-    committedStableRef.current = streamSplit.committed
-  }
-
-  const committedPrefix = streaming ? committedStableRef.current : ''
-  const liveTail = streaming ? children.slice(committedPrefix.length) : ''
-  const usePlainStream =
-    !!streaming &&
-    !committedPrefix &&
-    liveTail.length > 0 &&
-    liveTail.length <= STREAM_PLAIN_ONLY_MAX &&
-    !tailHasBlockSyntax(liveTail)
-
-  const markdown = useMemo(
-    () =>
-      preprocessMarkdownMath(streaming && committedPrefix ? committedPrefix : children, {
-        streaming: !!streaming && (!usePlainStream || !!committedPrefix),
-      }),
-    [children, streaming, usePlainStream, committedPrefix],
-  )
-
-  const remarkPlugins = useMemo(
-    () => buildRemarkPlugins(!!streaming && (!usePlainStream || !!committedPrefix)),
-    [streaming, usePlainStream, committedPrefix],
-  )
-
-  const components = useMemo(
-    () => ({
-      code: ({ className: cn2, children: ch, ...rest }: ComponentPropsWithoutRef<'code'>) => {
-        const lang = /language-([\w-]+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
-        const rawText = String(ch ?? '')
-        const raw = rawText.replace(/\n$/, '')
-        const isInline = !cn2 && !rawText.includes('\n')
-        if (lang === 'math' || lang === 'latex' || lang === 'tex') {
-          return <FencedMathBlock code={raw} />
-        }
-        if (uiBlockLanguageFromClassName(cn2)) {
-          return <UIBlockHost raw={raw} streaming={!!streaming} />
-        }
-        if (lang === 'mermaid') {
-          return <MermaidBlock code={raw} streaming={!!streaming} />
-        }
-        if (isInline) {
-          return <code {...rest}>{ch}</code>
-        }
-        return (
-          <CodeBlock className={cn2} streaming={streaming}>
-            {ch}
-          </CodeBlock>
-        )
-      },
-      // pi-ui and mermaid blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
-      pre: ({ node, children: ch, ...rest }: ComponentPropsWithoutRef<'pre'> & ExtraProps) =>
-        isSelfRenderingPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
-      a: ({ children: ch, node: _node, ...rest }: ComponentPropsWithoutRef<'a'> & ExtraProps) => (
-        <MarkdownLink {...rest} baseDirectory={baseDirectory} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-          {ch}
-        </MarkdownLink>
-      ),
-      table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (
-        <div data-pi-slot="timeline-table" className="my-3 max-w-full overflow-x-auto rounded-lg border border-border/55">
-          <table className="w-max min-w-[50%] max-w-full border-collapse text-[13px]">{ch}</table>
-        </div>
-      ),
-      th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => <th>{ch}</th>,
-      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => <td>{ch}</td>,
-      img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
-        <img src={src} alt={alt} className="my-2.5 max-w-full rounded-lg border border-border/45" />
-      ),
-      blockquote: ({ children: ch }: ComponentPropsWithoutRef<'blockquote'>) => (
-        <blockquote>{ch}</blockquote>
-      ),
-      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => <ul className="list-disc">{ch}</ul>,
-      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => <ol className="list-decimal">{ch}</ol>,
-      p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => {
-        if (typeof ch === 'string') {
-          return (
-            <p>
-              <MarkdownPathText text={ch} />
-            </p>
-          )
-        }
-        return <p>{ch}</p>
-      },
-      hr: () => <hr />,
-    }),
+  const renderEnv = useMemo<MarkdownRenderEnv>(
+    () => ({ streaming: !!streaming, baseDirectory }),
     [streaming, baseDirectory],
   )
 
-  if (usePlainStream) {
-    return (
-      <div className={cn('prose-chat prose-chat-streaming', className)}>
-        <StreamLiveTailBlock text={liveTail} streaming />
-      </div>
-    )
-  }
+  const markdown = useMemo(
+    () => (useBlockStreamTree ? '' : preprocessMarkdownMath(children, { streaming: false })),
+    [children, useBlockStreamTree],
+  )
 
-  if (streaming && (committedPrefix || liveTail)) {
+  if (useBlockStreamTree) {
     // An unclosed pi-ui fence bypasses Markdown: its body feeds the block host directly.
-    const openUIFence = liveTail ? splitOpenUIFence(liveTail) : null
-    const tailMarkdown = openUIFence ? openUIFence.before : liveTail
+    const openUIFence = streaming ? splitOpenUIFence(children) : null
+    const markdownSource = openUIFence ? openUIFence.before : children
     return (
-      <div className={cn('prose-chat prose-chat-streaming prose-chat-streaming-split', className)}>
-        {committedPrefix ? (
-          <StreamingMarkdownBlocks source={committedPrefix} components={components as Components} />
-        ) : null}
-        {tailMarkdown ? (
-          tailHasBlockSyntax(tailMarkdown) ? (
-            <ReactMarkdown
-              remarkPlugins={SETTLED_REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
-              components={components}
-              urlTransform={markdownUrlTransform}
-            >
-              {preprocessMarkdownMath(tailMarkdown, { streaming: false })}
-            </ReactMarkdown>
-          ) : (
-            <StreamLiveTailBlock text={tailMarkdown} streaming />
-          )
-        ) : null}
-        {openUIFence ? <UIBlockHost raw={openUIFence.raw} streaming /> : null}
-      </div>
+      <MarkdownRenderContext.Provider value={renderEnv}>
+        <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
+          {markdownSource ? (
+            <StreamingMarkdownBlocks source={markdownSource} streaming={!!streaming} />
+          ) : null}
+          {openUIFence ? <UIBlockHost raw={openUIFence.raw} streaming /> : null}
+        </div>
+      </MarkdownRenderContext.Provider>
     )
   }
 
   return (
-    <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
-        {markdown}
-      </ReactMarkdown>
-    </div>
+    <MarkdownRenderContext.Provider value={renderEnv}>
+      <div className={cn('prose-chat', className)}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS} urlTransform={markdownUrlTransform}>
+          {markdown}
+        </ReactMarkdown>
+      </div>
+    </MarkdownRenderContext.Provider>
   )
 })
 

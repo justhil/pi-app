@@ -10,7 +10,6 @@ import {
 } from '@renderer/components/icons'
 import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { StreamingCaret } from './tool-card-primitives'
 import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ReplyPlaceholder } from './reply-placeholder'
@@ -347,20 +346,6 @@ const TimelineItemBase = memo(function TimelineItem({
       return null
     }
 
-    if (isActivityThinkingOnly) {
-      return (
-        <div className="timeline-message-row timeline-activity-item">
-          <ThinkingChainBlock
-            text={String(item.thinkingText ?? '')}
-            streaming={streaming}
-            startedAt={Number(item.timestamp ?? 0) || undefined}
-            duration={Number(item.thinkingDuration ?? 0) || undefined}
-            labelSeed={String(item.id)}
-          />
-        </div>
-      )
-    }
-
     const proseBody = (
       <>
         {hasThinking && (
@@ -383,7 +368,6 @@ const TimelineItemBase = memo(function TimelineItem({
             <Suspense fallback={<p className="whitespace-pre-wrap break-words">{String(item.text ?? '')}</p>}>
               <MarkdownView streaming={streaming}>{String(item.text ?? '')}</MarkdownView>
             </Suspense>
-            {streaming && <StreamingCaret />}
           </div>
         ) : isInterrupted && !hasText ? (
           <div className="text-[12px] timeline-text-quiet">
@@ -425,10 +409,13 @@ const TimelineItemBase = memo(function TimelineItem({
 
     return (
       <div
-        data-pi-slot="timeline-prose-row"
-        className="timeline-message-row timeline-prose-row"
+        data-pi-slot={isActivityThinkingOnly ? undefined : 'timeline-prose-row'}
+        className={cn(
+          'timeline-message-row',
+          isActivityThinkingOnly ? 'timeline-activity-item' : 'timeline-prose-row',
+        )}
         onContextMenu={
-          streaming
+          streaming || isActivityThinkingOnly
             ? undefined
             : (e) =>
                 openMessageContextMenu(e, {
@@ -439,11 +426,11 @@ const TimelineItemBase = memo(function TimelineItem({
                 })
         }
       >
-        {allowMessageActions ? (
-          <MessageHoverShell
-            align="left"
-            floating={floatingMessageActions}
-            actions={
+        <MessageHoverShell
+          align="left"
+          floating={floatingMessageActions}
+          actions={
+            allowMessageActions && !isActivityThinkingOnly ? (
               <MessageHoverActions
                 text={String(item.text ?? '')}
                 timestamp={Number(item.timestamp ?? 0)}
@@ -454,13 +441,11 @@ const TimelineItemBase = memo(function TimelineItem({
                 onEdit={onStartEdit ? () => onStartEdit(String(item.id)) : undefined}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
-            }
-          >
-            {proseBody}
-          </MessageHoverShell>
-        ) : (
-          proseBody
-        )}
+            ) : null
+          }
+        >
+          {proseBody}
+        </MessageHoverShell>
       </div>
     )
   }

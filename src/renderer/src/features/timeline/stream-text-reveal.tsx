@@ -26,15 +26,16 @@ export function StreamLiveTail({
     return <span className={className}>{text}</span>
   }
 
-  const tipLen = Math.min(STREAM_REVEAL_TIP_CHARS, text.length)
-  const body = text.slice(0, text.length - tipLen)
-  const tip = text.slice(text.length - tipLen)
+  const chars = Array.from(text)
+  const tipLen = Math.min(STREAM_REVEAL_TIP_CHARS, chars.length)
+  const body = chars.slice(0, chars.length - tipLen).join('')
+  const tip = chars.slice(chars.length - tipLen).join('')
 
   return (
     <span className={className}>
       {body}
       {tip ? (
-        <span className="stream-char-tip" key={`${text.length}-${tip}`}>
+        <span className="stream-char-tip">
           {tip}
         </span>
       ) : null}

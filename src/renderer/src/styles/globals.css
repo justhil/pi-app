@@ -94,7 +94,7 @@
     --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
 
     /* Main paper surface + Composer shell curves */
-    --main-chat-surface-radius: 0px;
+    --main-chat-surface-radius: 12px;
     --main-chat-surface-shadow-top: none;
     --main-chat-surface-shadow: none;
     --composer-shell-radius: 14px;
@@ -512,7 +512,7 @@
     background: var(--chat-bg);
     overflow: hidden;
     height: 100%;
-    box-shadow: none;
+    box-shadow: inset 1px 1px 0 0 var(--shell-hairline);
   }
   .shell-right-rail-only .shell-track-center .main-chat-column,
   .shell-right-hidden-clean .shell-track-center .main-chat-column {
@@ -2268,14 +2268,31 @@
   .prose-chat-streaming-split > :last-child.stream-live-tail {
     margin-top: 0;
   }
-  .prose-chat-streaming .stream-live-tail,
-  .assistant-stream-live .prose-chat {
-    letter-spacing: 0.004em;
-    line-height: 1.65;
-    font-weight: 400;
-  }
   .stream-live-tail {
     contain: layout style;
+  }
+  /* Inline streaming caret attached to the trailing prose line (zero extra vertical height / zero collapse jump). */
+  .prose-chat-streaming > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+  .prose-chat-streaming > :is(ul, ol):last-child > li:last-child:not(:has(> p))::after,
+  .prose-chat-streaming > :is(ul, ol):last-child > li:last-child > p:last-child::after,
+  .prose-chat-streaming > blockquote:last-child > p:last-child::after {
+    content: '';
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: -0.14em;
+    border-radius: 1px;
+    background: hsl(var(--foreground) / 0.5);
+    animation: stream-caret-blink 1.05s steps(1, end) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prose-chat-streaming > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+    .prose-chat-streaming > :is(ul, ol):last-child > li:last-child:not(:has(> p))::after,
+    .prose-chat-streaming > :is(ul, ol):last-child > li:last-child > p:last-child::after,
+    .prose-chat-streaming > blockquote:last-child > p:last-child::after {
+      animation: none;
+    }
   }
   /* Soft tip fade for newest stream chars (≤2 char lag buffer) */
   @keyframes stream-char-tip-in {
@@ -4002,6 +4019,17 @@ html.dark {
 }
 
 /* ── 1. Frame Geometry: Island (Arc/Craft floating panes) & Flat (Zed/Linear IDE) ── */
+/* Paint --surface-frame once on .app-viewport so translucent themes never double-tint outer chrome
+   and leave a brighter rectangular seam around rounded island corners. */
+html[data-frame-style='island'] .app-viewport .electron-drag,
+html[data-frame-style='island'] [data-pi-slot='left-activity-rail'],
+html[data-frame-style='island'] .shell-track-left,
+html[data-frame-style='island'] [data-testid='sidebar-active-sessions-drawer'],
+html[data-frame-style='island'] .right-collapsed-rail,
+html[data-frame-style='island'] .settings-nav,
+html[data-frame-style='island'] .workbench-statusbar {
+  background: transparent !important;
+}
 html[data-frame-style='island'] .shell-track-center {
   padding: 2px 7px 7px 4px;
   background: transparent !important;

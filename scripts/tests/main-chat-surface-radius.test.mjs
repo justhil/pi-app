@@ -7,28 +7,36 @@ const css = readFileSync(join(process.cwd(), 'src/renderer/src/styles/globals.cs
 
 function cssRule(selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? ''
+  return [...css.matchAll(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`, 'g'))]
+    .map((m) => m[1])
+    .join('\n')
 }
 
-test('main chat paper surface casts outward onto the sidebar and top chrome', () => {
+test('should_provide_default_non_zero_shell_corner_radius_in_globals_css', () => {
   const shellRule = cssRule('.shell-three-col')
   const trackRule = cssRule('.shell-track-center')
   const surfaceRule = cssRule('.shell-track-center .main-chat-column')
+  const settingsRule = cssRule('.settings-main')
 
-  assert.match(css, /--main-chat-surface-radius:\s*16px/)
-  assert.match(css, /--main-chat-surface-shadow:\s*\n\s*-3px 0 8px -4px rgba\(18, 24, 40, 0\.14\),\s*\n\s*var\(--main-chat-surface-shadow-top\)/)
-  assert.match(css, /--main-chat-surface-shadow-top:\s*0 -2px 6px -3px rgba\(18, 24, 40, 0\.1\)/)
-  assert.match(css, /\.dark[^{]*\{[^}]*--main-chat-surface-shadow-top:\s*0 -2px 6px -3px rgba\(0, 0, 0, 0\.2\)/s)
-  assert.match(css, /\.dark[^{]*\{[^}]*--main-chat-surface-shadow:\s*\n\s*-3px 0 8px -4px rgba\(0, 0, 0, 0\.28\),\s*\n\s*var\(--main-chat-surface-shadow-top\)/s)
-  assert.doesNotMatch(css, /--main-chat-surface-shadow:[^;]*\binset\b/s)
+  // Default main surface corner radius matches DEFAULT_UI_CUSTOMIZATION.shellCornerRadius (12px), never 0px.
+  assert.match(css, /--main-chat-surface-radius:\s*12px/)
+  assert.doesNotMatch(css, /:root\s*\{[\s\S]*?--main-chat-surface-radius:\s*0(?:px)?;/)
   assert.match(shellRule, /position:\s*relative/)
   assert.match(shellRule, /z-index:\s*30/)
   assert.match(shellRule, /overflow:\s*visible/)
   assert.match(trackRule, /overflow:\s*visible/)
-  assert.match(trackRule, /background:\s*var\(--surface-sidebar\)/)
-  assert.match(surfaceRule, /border-radius:\s*var\(--main-chat-surface-radius\)\s+0\s+0\s+0/)
+  assert.match(trackRule, /background:\s*var\(--surface-frame\)/)
+  assert.match(surfaceRule, /border-radius:\s*var\(--main-chat-surface-radius,\s*var\(--shell-corner-radius,\s*12px\)\)\s+0\s+0\s+0/)
   assert.doesNotMatch(surfaceRule, /border-radius:\s*0(?:px|rem|em|%|\s*;)/)
   assert.match(surfaceRule, /overflow:\s*hidden/)
   assert.match(surfaceRule, /height:\s*100%/)
-  assert.match(surfaceRule, /box-shadow:\s*var\(--main-chat-surface-shadow\)/)
+  assert.match(settingsRule, /border-top-left-radius:\s*var\(--main-chat-surface-radius,\s*var\(--shell-corner-radius,\s*12px\)\)/)
+})
+
+test('should_prevent_island_mode_frame_double_tinting_around_rounded_corners', () => {
+  // Island mode must paint --surface-frame once on .app-viewport and keep outer chrome children
+  // transparent so translucent themes do not draw a brighter rectangular box around island corners.
+  const islandChromePattern =
+    /html\[data-frame-style='island'\]\s+\.app-viewport\s+\.electron-drag[\s\S]*?html\[data-frame-style='island'\]\s+\[data-pi-slot='left-activity-rail'\][\s\S]*?html\[data-frame-style='island'\]\s+\.shell-track-left[\s\S]*?html\[data-frame-style='island'\]\s+\.workbench-statusbar\s*\{[^}]*background:\s*transparent\s*!important/
+  assert.match(css, islandChromePattern)
 })

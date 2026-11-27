@@ -59,3 +59,59 @@ describe('MarkdownView pi-ui blocks', () => {
     expect(pre).toHaveClass('overflow-x-auto')
   })
 })
+
+describe('MarkdownView streaming stability', () => {
+  it('should_keep_single_paragraph_and_inline_formatting_without_splitting_mid_sentence_while_streaming', () => {
+    const chunk =
+      'First sentence finishes here. Second sentence keeps typing with **bold text** and `inlineCode` for a long enough tail to exceed the old sentence cut threshold.'
+    const { container } = render(<MarkdownView streaming>{chunk}</MarkdownView>)
+
+    // Must remain a single paragraph — never split mid-paragraph across two block <p> elements.
+    expect(container.querySelectorAll('p')).toHaveLength(1)
+    expect(container.querySelector('strong')?.textContent).toBe('bold text')
+    expect(container.querySelector('code')?.textContent).toBe('inlineCode')
+    expect(container.textContent).not.toContain('**bold text**')
+  })
+
+  it('should_keep_streaming_table_intact_without_splitting_into_raw_pipes', () => {
+    const partialTable = [
+      '| Column A | Column B | Column C |',
+      '| --- | --- | --- |',
+      '| value-alpha-1 | value-beta-1 | value-gamma-1 |',
+      '| value-alpha-2-with-a-very-long-description-exceeding-fifty-six-chars | value-beta-2 | value-gamma-2 |',
+    ].join('\n')
+    const { container } = render(<MarkdownView streaming>{partialTable}</MarkdownView>)
+
+    const tables = container.querySelectorAll('table')
+    expect(tables).toHaveLength(1)
+    expect(tables[0].querySelectorAll('tbody tr')).toHaveLength(2)
+    // No orphaned raw pipe lines outside the table.
+    expect(container.querySelectorAll('p')).toHaveLength(0)
+  })
+
+  it('should_not_corrupt_text_when_streaming_content_changes_prefix', () => {
+    const initial =
+      'Old first paragraph that was long enough to commit.\n\nOld second paragraph still streaming in the tail area.'
+    const { container, rerender } = render(<MarkdownView streaming>{initial}</MarkdownView>)
+    const replacement = 'Fresh replacement message with completely different prefix.'
+    rerender(<MarkdownView streaming>{replacement}</MarkdownView>)
+
+    expect(container.textContent).toBe(replacement)
+  })
+
+  it('should_preserve_dom_nodes_across_streaming_growth_and_completion_without_remount_flash', () => {
+    const p1 = 'First stable paragraph.'
+    const p2 = 'Second paragraph growing past ninety-six characters with enough text to verify block stability during stream.'
+    const { container, rerender } = render(<MarkdownView streaming>{p1}</MarkdownView>)
+    const firstParagraphAtShort = container.querySelector('p')
+    expect(firstParagraphAtShort).not.toBeNull()
+
+    rerender(<MarkdownView streaming>{`${p1}\n\n${p2}`}</MarkdownView>)
+    const firstParagraphAtLong = container.querySelector('p')
+    expect(firstParagraphAtLong).toBe(firstParagraphAtShort)
+
+    rerender(<MarkdownView streaming={false}>{`${p1}\n\n${p2}`}</MarkdownView>)
+    const firstParagraphAtSettled = container.querySelector('p')
+    expect(firstParagraphAtSettled).toBe(firstParagraphAtShort)
+  })
+})

@@ -281,4 +281,26 @@ describe('repository / checkout / session sidebar', () => {
     expect(pinnedSection).not.toBeNull()
     expect(pinnedSection.compareDocumentPosition(projectsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it('should_toggle_sidebar_collapsed_without_react_hook_order_error', async () => {
+    useUIStore.setState({ pinnedSessions: [], pinnedSessionMeta: {}, sidebarCollapsed: false })
+    sidebar()
+    await screen.findAllByText('/copies/feature question')
+    expect(screen.getByText('Projects')).toBeInTheDocument()
+
+    // Collapse then expand: hooks must remain unconditionally ordered (no React Error #300 / #310).
+    expect(() => {
+      act(() => {
+        useUIStore.setState({ sidebarCollapsed: true })
+      })
+    }).not.toThrow()
+
+    expect(() => {
+      act(() => {
+        useUIStore.setState({ sidebarCollapsed: false })
+      })
+    }).not.toThrow()
+
+    expect(screen.getByText('Projects')).toBeInTheDocument()
+  })
 })

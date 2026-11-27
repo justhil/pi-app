@@ -54,6 +54,13 @@ describe('splitMarkdownBlocks', () => {
     expect(blocks.some((block) => block.includes('a = b\n\n+ c'))).toBe(true)
   })
 
+  it('should_not_split_multiline_latex_bracket_math_containing_blank_lines', () => {
+    const src = 'Intro\n\n\\[\na = 1\n\nb = 2\n\\]\n\nOutro'
+    const { blocks } = splitMarkdownBlocks(src)
+    expect(blocks.join('')).toBe(src)
+    expect(blocks.some((block) => block.includes('\\[\na = 1\n\nb = 2\n\\]'))).toBe(true)
+  })
+
   it('keeps a source with a link or footnote definition undivided', () => {
     const source = 'See [the spec][spec] and a note[^1].\n\nMore text.\n\n[spec]: https://example.test\n\n[^1]: Footnote.'
     const cache = advanceMarkdownBlocks(EMPTY_MARKDOWN_BLOCK_CACHE, source)

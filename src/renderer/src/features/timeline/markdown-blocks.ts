@@ -16,6 +16,31 @@ import remarkMath from 'remark-math'
  * block grammar that could disagree with it. remark-breaks only affects inline content.
  */
 const blockParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath)
+const FENCE_LINE_RE = /^ {0,3}(`{3,}|~{3,})/
+
+/** Keep multi-line LaTeX `\[ ... \]` blocks undivided even when they contain blank lines. */
+function hasOpenLatexBracketBlock(prefix: string): boolean {
+  let fence: string | null = null
+  let inBracket = false
+  for (const line of prefix.split('\n')) {
+    const fenceMatch = FENCE_LINE_RE.exec(line)
+    if (fence) {
+      if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null
+      continue
+    }
+    if (fenceMatch && !inBracket) {
+      fence = fenceMatch[1]
+      continue
+    }
+    const body = line.trim()
+    if (inBracket) {
+      if (body.endsWith('\\]')) inBracket = false
+    } else if (body === '\\[' || (body.startsWith('\\[') && !body.endsWith('\\]'))) {
+      inBracket = true
+    }
+  }
+  return inBracket
+}
 
 type MdNode = { type?: string; children?: MdNode[]; position?: { start?: { offset?: number } } }
 
@@ -38,6 +63,7 @@ export function splitMarkdownBlocks(source: string): MarkdownBlockSplit {
   const children = tree.children ?? []
   const documentScoped = containsDefinition(tree)
   const blocks: string[] = []
+  const mayContainBracketMath = source.includes('\\[')
   let start = 0
   for (const child of children.slice(1)) {
     const offset = child.position?.start?.offset
@@ -46,6 +72,7 @@ export function splitMarkdownBlocks(source: string): MarkdownBlockSplit {
     // dropping it would re-parse as a different block (nested list, indented code).
     const cut = source.lastIndexOf('\n', offset - 1) + 1
     if (cut <= start) continue
+    if (mayContainBracketMath && hasOpenLatexBracketBlock(source.slice(start, cut))) continue
     blocks.push(source.slice(start, cut))
     start = cut
   }

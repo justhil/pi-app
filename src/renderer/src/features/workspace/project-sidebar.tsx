@@ -70,6 +70,8 @@ export function ProjectSidebar({
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
+  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
+  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const recentProjects = useUIStore((s) => s.recentProjects)
@@ -691,9 +693,6 @@ export function ProjectSidebar({
       </div>
     )
   }
-
-  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
-  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
 
   const handleQuickNewThread = () => {
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
