@@ -42,6 +42,7 @@ const UNTRANSLATED_TERMS = new Set([
   'Catppuccin',
   'Light',
   'Nord',
+  'SSH',
   'Worktrees',
   'Worktree',
   'CLI',

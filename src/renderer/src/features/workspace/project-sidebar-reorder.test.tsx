@@ -78,7 +78,9 @@ describe('drag to reorder in the sidebar', () => {
   it('should_not_reorder_while_searching', async () => {
     const { container } = render(<ProjectSidebar onOpenProject={() => {}} openProjectLabel="Open folder" />)
     await screen.findByText('chat 3')
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'chat' } })
+    // The 4-column sidebar keeps search behind its trigger button.
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.change(await screen.findByRole('searchbox'), { target: { value: 'chat' } })
     const row = (n: number) => container.querySelector(`[data-session-file="/a/s${n}.jsonl"]`)!
     await waitFor(() => expect(row(3)).not.toBeNull())
 
