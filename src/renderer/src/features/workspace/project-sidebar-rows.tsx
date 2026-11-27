@@ -7,6 +7,7 @@ import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
+import { OverlayScrollbarRail } from '@renderer/components/ui/overlay-scrollbar'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
@@ -66,6 +67,8 @@ export function ProjectSessionTree({
   const catalogReady = useToolCardCatalogReady()
   const [expandedSessionFiles, setExpandedSessionFiles] = useState<Set<string>>(() => new Set())
   const [showAllSessions, setShowAllSessions] = useState(false)
+  const [listHover, setListHover] = useState(false)
+  const listScrollRef = useRef<HTMLDivElement>(null)
   const isCurrentProject = workspacePathsEqual(currentWorkspace, workspacePath)
   // Only the viewed project has live subagents; the memoized selector keeps the same array
   // across streaming tokens so this tree does not re-render on every delta.
@@ -418,14 +421,30 @@ export function ProjectSessionTree({
           </div>
         </div>
       ) : null}
-      <div id={sessionsId} className={cn('sidebar-session-list', showAllSessions && !searchQuery.trim() && 'max-h-80 overflow-y-auto overscroll-contain')}>
-        {loading ? (
-          <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
-        ) : visibleRoots.length === 0 ? (
-          !error && !pendingNew && projectSessions.length === 0 && (
-            <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
-          )
-        ) : shownRoots.map((node) => renderSession(node))}
+      <div
+        className="relative"
+        onMouseEnter={() => setListHover(true)}
+        onMouseLeave={() => setListHover(false)}
+      >
+        <div
+          ref={listScrollRef}
+          id={sessionsId}
+          className={cn(
+            'sidebar-session-list',
+            showAllSessions && !searchQuery.trim() && 'overlay-scroll-pane max-h-80 overflow-y-auto overflow-x-hidden overscroll-contain',
+          )}
+        >
+          {loading ? (
+            <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
+          ) : visibleRoots.length === 0 ? (
+            !error && !pendingNew && projectSessions.length === 0 && (
+              <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
+            )
+          ) : shownRoots.map((node) => renderSession(node))}
+        </div>
+        {showAllSessions && !searchQuery.trim() ? (
+          <OverlayScrollbarRail targetRef={listScrollRef} hostHover={listHover} />
+        ) : null}
       </div>
       {!loading && !searchQuery.trim() && (hiddenCount > 0 || (showAllSessions && visibleRoots.length > VISIBLE_SESSION_LIMIT)) && (
         <button
