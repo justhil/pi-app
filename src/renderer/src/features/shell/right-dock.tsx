@@ -689,7 +689,6 @@ export function RightDock({
             activateInSlot('top', id, openIds)
           }}
           onCloseTab={(id) => {
-            if (openIds.length <= 1) setLaunchpadOpen(false)
             closeTab(id)
           }}
           onOpenFromMenu={(id) => {

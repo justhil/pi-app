@@ -234,9 +234,8 @@ export const useRightDockStore = create<RightDockState>()(
             bottomTabIds: [],
             topActive: '',
             bottomActive: null,
-            launchpadOpen: false,
+            launchpadOpen: !ui.rightPanelCollapsed,
           })
-          collapseRightPanelCleanly()
           return
         }
 

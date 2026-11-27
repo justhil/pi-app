@@ -528,6 +528,14 @@ export function ProjectSidebar({
       active={workspacePathsEqual(path, currentWorkspace)}
       open={open}
       onOpenProject={() => {
+        if (!searchActive && expandedPaths.has(key)) {
+          setExpandedPaths((previous) => {
+            const next = new Set(previous)
+            next.delete(key)
+            return next
+          })
+          return
+        }
         setExpandedPaths((previous) => new Set(previous).add(key))
         void switchDiskProject(path)
       }}
@@ -834,8 +842,112 @@ export function ProjectSidebar({
           </div>
         )}
 
+        {/* Pinned Shortcuts (always at the top of the sidebar; sessions remain inside their own project folders too) */}
+        {pinnedQuickItems.length > 0 && !searchActive ? (
+          <div className={cn(showNewChat ? 'mt-5' : 'mt-1', 'px-3')} data-pi-slot="sidebar-pinned-section">
+            <div className="sidebar-section-head">
+              <button
+                type="button"
+                onClick={() => setPinnedOpen((v) => !v)}
+                className="sidebar-section-hit flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
+                aria-expanded={pinnedOpen}
+              >
+                <span className="sidebar-section-title">{t('common:sidebar.pinnedSection')}</span>
+                <ChevronRight
+                  className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/50"
+                  data-open={pinnedOpen ? 'true' : 'false'}
+                />
+              </button>
+            </div>
+            <SidebarAnimatedCollapse open={pinnedOpen}>
+              <div className="space-y-0.5">
+                {pinnedQuickItems.map((entry) => {
+                  const attention = selectSessionAttention(entry.sessionFile, sessionAttention)
+                  const active =
+                    !ephemeralSandboxDraft &&
+                    sessionFilesEqual(historySessionFile, entry.sessionFile)
+                  const openPinned = async () => {
+                    if (entry.sandboxBox) {
+                      await openSandboxDialog(entry.sandboxBox)
+                      return
+                    }
+                    let targetWs = entry.workspacePath
+                    let targetId = entry.sessionId
+                    if (!targetWs || !targetId) {
+                      const prepared = await ipcClient
+                        .invoke('session.prepare', { sessionFile: entry.sessionFile, bind: false })
+                        .catch(() => null)
+                      if (prepared?.workspaceId) targetWs = prepared.workspaceId
+                      if (prepared?.sessionId) targetId = prepared.sessionId
+                    }
+                    if (!targetWs) return
+                    await activateWorkspace(targetWs, {
+                      sessionId: targetId || undefined,
+                      sessionFile: entry.sessionFile,
+                    })
+                  }
+                  return (
+                    <div
+                      key={entry.sessionFile}
+                      role="button"
+                      tabIndex={0}
+                      title={entry.sourceLabel ? `${entry.title} · ${entry.sourceLabel}` : entry.title}
+                      onClick={() => void openPinned()}
+                      onKeyDown={(e) => e.key === 'Enter' && void openPinned()}
+                      onContextMenu={(e) => {
+                        if (entry.kind === 'sandbox' && entry.sandboxBox) {
+                          sandboxMenu.open(e, entry.sandboxBox)
+                        } else if (entry.workspacePath) {
+                          sessionMenu.open(e, {
+                            sessionId: entry.sessionId,
+                            sessionFile: entry.sessionFile,
+                            title: entry.title,
+                            workspacePath: entry.workspacePath,
+                          })
+                        }
+                      }}
+                      className={cn(
+                        'nav-row group flex h-[34px] items-center gap-2 rounded-lg px-2 text-[13px]',
+                        active ? 'nav-row-active text-foreground' : 'text-foreground/85 hover:text-foreground',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate',
+                          active && 'font-medium text-foreground',
+                          attention === 'done' && 'font-semibold text-foreground',
+                        )}
+                      >
+                        {entry.title}
+                      </span>
+                      {entry.sourceLabel ? (
+                        <span className="max-w-[72px] shrink-0 truncate text-[11px] text-foreground-secondary/45 group-hover:hidden">
+                          {entry.sourceLabel}
+                        </span>
+                      ) : null}
+                      <SessionAttentionDot attention={attention} className="shrink-0 group-hover:hidden" />
+                      <button
+                        type="button"
+                        title={t('common:sidebar.unpinSession')}
+                        aria-label={t('common:sidebar.unpinSession')}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          toggleSessionPinned(entry.sessionFile)
+                        }}
+                        className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-foreground-secondary/75 hover:bg-foreground/[0.08] hover:text-foreground group-hover:inline-flex"
+                      >
+                        <SessionPinGlyph className="h-3 w-3" filled />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </SidebarAnimatedCollapse>
+          </div>
+        ) : null}
+
         {/* Primary Section: Projects & Sessions */}
-        <div className={cn(showNewChat ? 'mt-5' : 'mt-1', 'px-3')} hidden={searchActive && visiblePaths.length === 0}>
+        <div className={cn(pinnedQuickItems.length > 0 && !searchActive ? 'mt-5' : showNewChat ? 'mt-5' : 'mt-1', 'px-3')} hidden={searchActive && visiblePaths.length === 0}>
           <div className="sidebar-section-head">
             <span className="sidebar-section-title flex-1">{t('common:sidebar.projects')}</span>
             {!showBrand && !showNewChat ? renderSearchTrigger() : null}
@@ -941,110 +1053,6 @@ export function ProjectSidebar({
             </div>
           )}
         </div>
-
-        {/* Pinned Shortcuts (sessions remain inside their own project folders too) */}
-        {pinnedQuickItems.length > 0 && !searchActive ? (
-          <div className="mt-5 px-3" data-pi-slot="sidebar-pinned-section">
-            <div className="sidebar-section-head">
-              <button
-                type="button"
-                onClick={() => setPinnedOpen((v) => !v)}
-                className="sidebar-section-hit flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
-                aria-expanded={pinnedOpen}
-              >
-                <span className="sidebar-section-title">{t('common:sidebar.pinnedSection')}</span>
-                <ChevronRight
-                  className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/50"
-                  data-open={pinnedOpen ? 'true' : 'false'}
-                />
-              </button>
-            </div>
-            <SidebarAnimatedCollapse open={pinnedOpen}>
-              <div className="space-y-0.5">
-                {pinnedQuickItems.map((entry) => {
-                  const attention = selectSessionAttention(entry.sessionFile, sessionAttention)
-                  const active =
-                    !ephemeralSandboxDraft &&
-                    sessionFilesEqual(historySessionFile, entry.sessionFile)
-                  const openPinned = async () => {
-                    if (entry.sandboxBox) {
-                      await openSandboxDialog(entry.sandboxBox)
-                      return
-                    }
-                    let targetWs = entry.workspacePath
-                    let targetId = entry.sessionId
-                    if (!targetWs || !targetId) {
-                      const prepared = await ipcClient
-                        .invoke('session.prepare', { sessionFile: entry.sessionFile, bind: false })
-                        .catch(() => null)
-                      if (prepared?.workspaceId) targetWs = prepared.workspaceId
-                      if (prepared?.sessionId) targetId = prepared.sessionId
-                    }
-                    if (!targetWs) return
-                    await activateWorkspace(targetWs, {
-                      sessionId: targetId || undefined,
-                      sessionFile: entry.sessionFile,
-                    })
-                  }
-                  return (
-                    <div
-                      key={entry.sessionFile}
-                      role="button"
-                      tabIndex={0}
-                      title={entry.sourceLabel ? `${entry.title} · ${entry.sourceLabel}` : entry.title}
-                      onClick={() => void openPinned()}
-                      onKeyDown={(e) => e.key === 'Enter' && void openPinned()}
-                      onContextMenu={(e) => {
-                        if (entry.kind === 'sandbox' && entry.sandboxBox) {
-                          sandboxMenu.open(e, entry.sandboxBox)
-                        } else if (entry.workspacePath) {
-                          sessionMenu.open(e, {
-                            sessionId: entry.sessionId,
-                            sessionFile: entry.sessionFile,
-                            title: entry.title,
-                            workspacePath: entry.workspacePath,
-                          })
-                        }
-                      }}
-                      className={cn(
-                        'nav-row group flex h-[34px] items-center gap-2 rounded-lg px-2 text-[13px]',
-                        active ? 'nav-row-active text-foreground' : 'text-foreground/85 hover:text-foreground',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'min-w-0 flex-1 truncate',
-                          active && 'font-medium text-foreground',
-                          attention === 'done' && 'font-semibold text-foreground',
-                        )}
-                      >
-                        {entry.title}
-                      </span>
-                      {entry.sourceLabel ? (
-                        <span className="max-w-[72px] shrink-0 truncate text-[11px] text-foreground-secondary/45 group-hover:hidden">
-                          {entry.sourceLabel}
-                        </span>
-                      ) : null}
-                      <SessionAttentionDot attention={attention} className="shrink-0 group-hover:hidden" />
-                      <button
-                        type="button"
-                        title={t('common:sidebar.unpinSession')}
-                        aria-label={t('common:sidebar.unpinSession')}
-                        onClick={(ev) => {
-                          ev.stopPropagation()
-                          toggleSessionPinned(entry.sessionFile)
-                        }}
-                        className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-foreground-secondary/75 hover:bg-foreground/[0.08] hover:text-foreground group-hover:inline-flex"
-                      >
-                        <SessionPinGlyph className="h-3 w-3" filled />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </SidebarAnimatedCollapse>
-          </div>
-        ) : null}
 
         {/* Standalone Chats */}
         <div className="mt-5 px-3" hidden={searchActive && visibleSandboxes.length === 0}>

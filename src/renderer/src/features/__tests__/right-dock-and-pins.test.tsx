@@ -78,12 +78,51 @@ describe('Decoupled RightDock, Pinned Sessions & Browser Tool Summaries', () => 
     expect(useRightDockStore.getState().openTabIds).toEqual(['canvas'])
     expect(useUIStore.getState().rightPanelCollapsed).toBe(false)
 
-    // Middle-click closes the last tab (Canvas) and auto-collapses the right panel.
+    // Middle-click closes the last panel tab (Canvas): dock stays open on the new-tab launchpad instead of auto-collapsing.
     fireEvent(
       screen.getByRole('tab', { name: 'Canvas' }),
       new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
     )
     expect(useRightDockStore.getState().openTabIds).toEqual([])
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(false)
+    expect(screen.getByTestId('right-dock-new-tab-pill')).toBeInTheDocument()
+
+    // Only when the new-tab launchpad itself is closed does the right panel collapse.
+    fireEvent(
+      screen.getByTestId('right-dock-new-tab-pill'),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    )
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(true)
+  })
+
+  it('should_keep_right_dock_open_when_closing_panel_leaves_only_new_tab_launchpad', () => {
+    useUIStore.setState({ rightPanelCollapsed: false, activePanel: 'canvas' })
+    useRightDockStore.getState().openTab('canvas')
+    useRightDockStore.getState().setLaunchpadOpen(true)
+
+    const panels = [
+      { key: 'canvas', label: 'Canvas' },
+      { key: 'files', label: 'Files' },
+    ]
+    render(
+      <RightDock
+        panels={panels}
+        catalog={CORE_RIGHT_PANEL_CATALOG}
+        rightPanelHidden={false}
+        navSuppressed={false}
+      />,
+    )
+
+    fireEvent(
+      screen.getByRole('tab', { name: 'Canvas' }),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    )
+    expect(useRightDockStore.getState().openTabIds).toEqual([])
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(false)
+    expect(screen.getByTestId('right-dock-new-tab-pill')).toBeInTheDocument()
+
+    const closeNewTabBtn = screen.getByTestId('right-dock-new-tab-pill').querySelector('button[aria-label]')!
+    fireEvent.click(closeNewTabBtn)
     expect(useUIStore.getState().rightPanelCollapsed).toBe(true)
   })
 
