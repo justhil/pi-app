@@ -1,5 +1,9 @@
-import { useState } from 'react'
-import { toast } from 'sonner'
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  useAnchoredMenuPosition,
+  useDismissContextMenu,
+} from '@renderer/features/workspace/context-menu-shared'
 import type { CanvasSurface, CanvasSurfaceKind } from '@shared/canvas-types'
 import { CANVAS_TOOL_DEFS } from '@shared/canvas-tools'
 import {
@@ -11,8 +15,6 @@ import {
   Layers,
   Maximize2,
   MoreHorizontal,
-  Plus,
-  RotateCcw,
   Smartphone,
   Sparkles,
   Trash2,
@@ -21,11 +23,7 @@ import {
 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import {
-  createMermaidDemoSurface,
-  createStatGridDemoSurface,
-  useCanvasStore,
-} from './canvas-store'
+import { useCanvasStore } from './canvas-store'
 import { DeviceStreamSurface } from './surfaces/device-stream-surface'
 import { DelegationTreeSurface } from './surfaces/delegation-tree-surface'
 import { SandboxHtmlSurface } from './surfaces/sandbox-html-surface'
@@ -76,74 +74,28 @@ export function CanvasPanel() {
   const removeSurface = useCanvasStore((s) => s.removeSurface)
   const setLayoutMode = useCanvasStore((s) => s.setLayoutMode)
   const setProtocolDrawerOpen = useCanvasStore((s) => s.setProtocolDrawerOpen)
-  const presentSurface = useCanvasStore((s) => s.presentSurface)
   const clearNonPinned = useCanvasStore((s) => s.clearNonPinned)
-  const restoreDemos = useCanvasStore((s) => s.restoreDemos)
 
   const stageExpand = useUIStore((s) => s.browserChatExpand)
   const canvasHeaderMode = useUIStore((s) => s.uiCustomization.shellCanvasHeaderMode)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreBtnRef = useRef<HTMLButtonElement>(null)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
+  useDismissContextMenu(moreMenuOpen, moreMenuRef, () => setMoreMenuOpen(false), moreBtnRef)
+  const moreMenuPos = useAnchoredMenuPosition(moreMenuOpen, moreBtnRef, moreMenuRef, { align: 'end', gap: 6 })
 
   const activeSurface =
     surfaces.find((s) => s.id === activeSurfaceId) ?? surfaces[0] ?? null
   const showCanvasHeader =
-    canvasHeaderMode === 'always' ||
-    (canvasHeaderMode === 'multi-only' &&
-      (surfaces.length > 1 || layoutMode === 'grid' || protocolDrawerOpen))
-
-  const projectMermaidDemo = () => {
-    const item = createMermaidDemoSurface()
-    presentSurface({ ...item, focus: true })
-    setLayoutMode('single')
-    setMoreMenuOpen(false)
-    toast.success('已添加系统架构图')
-  }
-
-  const projectKpiDemo = () => {
-    const item = createStatGridDemoSurface()
-    presentSurface({ ...item, focus: true })
-    setLayoutMode('single')
-    setMoreMenuOpen(false)
-    toast.success('已添加性能指标视图')
-  }
-
-  const projectSampleTable = () => {
-    const now = Date.now()
-    presentSurface({
-      id: `live-table-${now.toString(36).slice(-4)}`,
-      title: '节点状态总览',
-      subtitle: '实时运行指标',
-      kind: 'ui-block',
-      source: 'ai',
-      focus: true,
-      payload: {
-        component: 'data-table',
-        props: {
-          title: '连接设备与运行节点',
-          columns: [
-            { key: 'target', label: '节点' },
-            { key: 'channel', label: '通道' },
-            { key: 'latency', label: '延迟 (ms)', type: 'number' },
-            { key: 'status', label: '状态' },
-          ],
-          rows: [
-            { target: 'Pixel 9 Pro (emulator-5554)', channel: 'ADB Stream', latency: 18, status: '就绪' },
-            { target: 'adb-bridge', channel: 'Worker', latency: 4, status: '运行中' },
-            { target: 'ui-architect', channel: 'Worker', latency: 3, status: '已完成' },
-            { target: '参数面板', channel: 'Interactive', latency: 1, status: '活跃' },
-          ],
-          pageSize: 10,
-        },
-      },
-    })
-    setLayoutMode('single')
-    setProtocolDrawerOpen(false)
-    setMoreMenuOpen(false)
-  }
+    surfaces.length > 0 &&
+    (canvasHeaderMode === 'always' ||
+      (canvasHeaderMode === 'multi-only' &&
+        (surfaces.length > 1 || layoutMode === 'grid' || protocolDrawerOpen)))
 
   const renderOverflowMenu = () => (
     <div className="relative">
       <button
+        ref={moreBtnRef}
         type="button"
         onClick={() => setMoreMenuOpen((v) => !v)}
         aria-expanded={moreMenuOpen}
@@ -158,95 +110,63 @@ export function CanvasPanel() {
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
-      {moreMenuOpen ? (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} aria-hidden />
-          <div
-            role="menu"
-            data-browser-overlay=""
-            className="shell-popover absolute right-0 top-7 z-50 w-[204px] rounded-lg border border-border/65 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setLayoutMode(layoutMode === 'grid' ? 'single' : 'grid')
-                setMoreMenuOpen(false)
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+      {moreMenuOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={moreMenuRef}
+              role="menu"
+              data-browser-overlay=""
+              style={moreMenuPos}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="electron-no-drag fixed z-[500] w-[196px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border border-border/65 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
             >
-              <Columns2 className="h-3.5 w-3.5 text-foreground-secondary" />
-              <span>{layoutMode === 'grid' ? '切回单视图' : '网格总览'}</span>
-            </button>
-            <div className="my-1 h-px bg-border/45" />
-            <div className="px-2 py-0.5 text-[10px] font-medium text-muted-foreground/75">添加视图</div>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={projectKpiDemo}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-foreground-secondary" />
-              <span>核心指标卡片</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={projectMermaidDemo}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-            >
-              <Boxes className="h-3.5 w-3.5 text-foreground-secondary" />
-              <span>系统架构图</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={projectSampleTable}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-            >
-              <Plus className="h-3.5 w-3.5 text-foreground-secondary" />
-              <span>节点状态表格</span>
-            </button>
-            <div className="my-1 h-px bg-border/45" />
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setProtocolDrawerOpen(!protocolDrawerOpen)
-                setMoreMenuOpen(false)
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
-            >
-              <Wrench className="h-3.5 w-3.5" />
-              <span>{protocolDrawerOpen ? '隐藏工具协议' : '工具协议说明'}</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMoreMenuOpen(false)
-                restoreDemos()
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>恢复默认视图</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMoreMenuOpen(false)
-                clearNonPinned()
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>清空临时视图</span>
-            </button>
-          </div>
-        </>
-      ) : null}
+              {surfaces.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setLayoutMode(layoutMode === 'grid' ? 'single' : 'grid')
+                      setMoreMenuOpen(false)
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  >
+                    <Columns2 className="h-3.5 w-3.5 text-foreground-secondary" />
+                    <span>{layoutMode === 'grid' ? '切回单视图' : '网格总览'}</span>
+                  </button>
+                  <div className="my-1 h-px bg-border/45" />
+                </>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProtocolDrawerOpen(!protocolDrawerOpen)
+                  setMoreMenuOpen(false)
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+              >
+                <Wrench className="h-3.5 w-3.5" />
+                <span>{protocolDrawerOpen ? '隐藏工具协议' : '工具协议说明'}</span>
+              </button>
+              {surfaces.length > 0 ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    clearNonPinned()
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>清空临时视图</span>
+                </button>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 
@@ -340,7 +260,7 @@ export function CanvasPanel() {
             {renderOverflowMenu()}
           </div>
         </div>
-      ) : (
+      ) : surfaces.length > 0 ? (
         <div
           className={cn(
             'absolute right-2.5 top-2 z-20 flex items-center gap-0.5 rounded-lg border border-border/50 bg-background/85 p-0.5 shadow-sm backdrop-blur-sm transition-opacity',
@@ -349,9 +269,9 @@ export function CanvasPanel() {
         >
           {renderOverflowMenu()}
         </div>
-      )}
+      ) : null}
 
-      {/* Optional developer protocol drawer (hidden in overflow menu by default) */}
+      {/* Optional developer protocol drawer */}
       {protocolDrawerOpen ? (
         <div className="shrink-0 border-b border-border/35 bg-[var(--bg-1)]/65 px-3.5 py-2.5 text-[11.5px]">
           <div className="flex items-center justify-between gap-2">
@@ -389,17 +309,17 @@ export function CanvasPanel() {
             </div>
             <div>
               <div className="text-[13px] font-medium text-foreground">画布为空</div>
-              <p className="mt-1 max-w-[240px] text-[12px] leading-relaxed text-foreground-secondary">
-                启用画布工具后，Agent 生成的设备画面、任务拓扑、图表和原型会实时呈现在这里。
+              <p className="mt-1 max-w-[260px] text-[12px] leading-relaxed text-foreground-secondary">
+                对话中 Agent 生成的设备画面、任务拓扑、图表和原型会实时呈现在这里。
               </p>
             </div>
             <button
               type="button"
-              onClick={restoreDemos}
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border/55 bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-[var(--bg-hover)]"
+              onClick={() => setProtocolDrawerOpen(!protocolDrawerOpen)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border/55 bg-background px-3 text-[12px] font-medium text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
             >
-              <RotateCcw className="h-3 w-3" />
-              <span>载入示例视图</span>
+              <Wrench className="h-3 w-3" />
+              <span>{protocolDrawerOpen ? '隐藏工具协议' : '查看工具协议'}</span>
             </button>
           </div>
         ) : layoutMode === 'grid' ? (

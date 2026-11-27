@@ -12,9 +12,20 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 describe('AI Canvas store & tool call protocol', () => {
   beforeEach(() => {
     invokeMock.mockReset()
-    useCanvasStore.getState().restoreDemos()
+    useCanvasStore.setState({
+      surfaces: [],
+      activeSurfaceId: null,
+      layoutMode: 'single',
+      protocolDrawerOpen: false,
+    })
     useUIStore.setState({ rightPanelCollapsed: true, activePanel: 'run' })
     useRightDockStore.setState({ bottomTabIds: [], topActive: 'run', bottomActive: null })
+  })
+
+  it('starts empty without placeholder demo surfaces', () => {
+    const state = useCanvasStore.getState()
+    expect(state.surfaces).toEqual([])
+    expect(state.activeSurfaceId).toBeNull()
   })
 
   it('projects a new surface via canvas_present, focuses it, reveals Canvas stage, and replies via IPC', () => {
@@ -54,20 +65,34 @@ describe('AI Canvas store & tool call protocol', () => {
   })
 
   it('patches an existing surface via canvas_update and reports user interactions via canvas_read', () => {
-    useCanvasStore.getState().recordInteraction('adb-pixel-9', { lastTap: { x: 540, y: 1200 } })
+    useCanvasStore.getState().presentSurface({
+      id: 'device-1',
+      title: 'Android Device',
+      kind: 'device-stream',
+      pinned: true,
+      payload: {
+        deviceName: 'Android Device',
+        serial: 'adb-01',
+        platform: 'android',
+        resolution: { width: 1080, height: 2400 },
+        streamMode: 'screencap',
+        status: 'connected',
+      },
+    })
+    useCanvasStore.getState().recordInteraction('device-1', { lastTap: { x: 540, y: 1200 } })
 
     handleCanvasToolCallEvent({
       type: 'canvas-tool-call',
       callId: 'cv-2',
       tool: 'canvas_update',
       args: {
-        id: 'adb-pixel-9',
+        id: 'device-1',
         subtitle: 'Updated frame',
         payloadPatch: { battery: 91 },
       },
     })
 
-    const updated = useCanvasStore.getState().surfaces.find((s) => s.id === 'adb-pixel-9')
+    const updated = useCanvasStore.getState().surfaces.find((s) => s.id === 'device-1')
     expect(updated?.subtitle).toBe('Updated frame')
     expect((updated?.payload as { battery?: number }).battery).toBe(91)
 
@@ -75,7 +100,7 @@ describe('AI Canvas store & tool call protocol', () => {
       type: 'canvas-tool-call',
       callId: 'cv-3',
       tool: 'canvas_read',
-      args: { id: 'adb-pixel-9' },
+      args: { id: 'device-1' },
     })
 
     const readCall = invokeMock.mock.calls.find((c) => (c[1] as { callId: string }).callId === 'cv-3')
@@ -84,6 +109,21 @@ describe('AI Canvas store & tool call protocol', () => {
   })
 
   it('removes surfaces via canvas_close without dropping pinned items when all:true', () => {
+    useCanvasStore.getState().presentSurface({
+      id: 'pinned-1',
+      title: 'Pinned View',
+      kind: 'markdown',
+      pinned: true,
+      payload: { markdown: 'keep' },
+    })
+    useCanvasStore.getState().presentSurface({
+      id: 'temp-1',
+      title: 'Temp View',
+      kind: 'markdown',
+      pinned: false,
+      payload: { markdown: 'drop' },
+    })
+
     handleCanvasToolCallEvent({
       type: 'canvas-tool-call',
       callId: 'cv-4',
@@ -92,6 +132,6 @@ describe('AI Canvas store & tool call protocol', () => {
     })
     const remaining = useCanvasStore.getState().surfaces
     expect(remaining.every((s) => s.pinned)).toBe(true)
-    expect(remaining.some((s) => s.id === 'adb-pixel-9')).toBe(true)
+    expect(remaining.map((s) => s.id)).toEqual(['pinned-1'])
   })
 })

@@ -19,74 +19,6 @@ import { normalizeTreeToolItem } from '@renderer/features/timeline/tree-tool-mod
 import { openSubagentSessionPreview } from '@renderer/lib/subagent-session-navigation'
 import { useCanvasStore } from '../canvas-store'
 
-const DEMO_NODES: CanvasDelegationNode[] = [
-  {
-    id: 'root',
-    parentId: null,
-    agent: 'orchestrator',
-    role: '主会话调度器',
-    task: '重构左右侧边栏交互，并搭建右侧多模态 AI 画布',
-    state: 'running',
-    toolCount: 14,
-    tokens: 31_400,
-    durationMs: 42_000,
-    model: 'claude-sonnet-5-5',
-    outputPreview: '已分发 3 个并行子任务：布局打磨已完成，ADB 流协议桥接正在验证中。',
-  },
-  {
-    id: 'n-ui',
-    parentId: 'root',
-    agent: 'ui-architect',
-    role: '前端架构',
-    task: '净化左栏底栏、修复行高并重做右侧舞台容器',
-    state: 'completed',
-    toolCount: 9,
-    tokens: 14_200,
-    durationMs: 18_400,
-    model: 'claude-sonnet-5-5',
-    outputPreview: '已完成 ImmersiveChrome 分段切换、贴边图标轨及浏览器嵌套层瘦身。',
-  },
-  {
-    id: 'n-adb',
-    parentId: 'root',
-    agent: 'adb-bridge',
-    role: '设备流代理',
-    task: '建立 scrcpy / ADB 帧通道与触控坐标回传契约',
-    state: 'running',
-    toolCount: 12,
-    tokens: 9_850,
-    durationMs: 21_700,
-    model: 'claude-sonnet-5-5',
-    outputPreview: '正在监听 emulator-5554 (1080×2400)，已叠加 AI 视觉定位标靶…',
-  },
-  {
-    id: 'n-qa',
-    parentId: 'root',
-    agent: 'qa-verifier',
-    role: '验证回归',
-    task: '等待上游完成后执行 typecheck、单测与 E2E 冒烟',
-    state: 'pending',
-    toolCount: 0,
-    tokens: 0,
-    durationMs: 0,
-    model: 'claude-haiku-5-5',
-    outputPreview: '等待 adb-bridge 结束后自动启动校验。',
-  },
-  {
-    id: 'n-enc',
-    parentId: 'n-adb',
-    agent: 'frame-encoder',
-    role: '子委派',
-    task: '动态码率自适应与 WebCodecs 解码降级策略',
-    state: 'running',
-    toolCount: 4,
-    tokens: 3_120,
-    durationMs: 7_900,
-    model: 'claude-haiku-5-5',
-    outputPreview: '当前帧率稳定 60fps，端到端延迟 18ms。',
-  },
-]
-
 function formatDuration(ms?: number): string {
   if (!ms || ms <= 0) return '—'
   if (ms < 1000) return `${ms}ms`
@@ -144,10 +76,9 @@ export function DelegationTreeSurface({ surface }: { surface: CanvasSurface }) {
   const timelineItems = useUIStore((s) => s.timelineItems)
   const recordInteraction = useCanvasStore((s) => s.recordInteraction)
 
-  const [mode, setMode] = useState<'auto' | 'demo'>('auto')
-  const [selectedId, setSelectedId] = useState<string>('n-adb')
+  const [selectedId, setSelectedId] = useState<string>('')
 
-  const liveNodes = useMemo<CanvasDelegationNode[]>(() => {
+  const nodes = useMemo<CanvasDelegationNode[]>(() => {
     if (payload.source === 'snapshot' && payload.nodes?.length) return payload.nodes
     const treeItems = timelineItems.filter((item) => {
       if (item.type !== 'tool-call') return false
@@ -163,7 +94,7 @@ export function DelegationTreeSurface({ surface }: { surface: CanvasSurface }) {
       )
     })
     if (treeItems.length === 0) return []
-    const nodes: CanvasDelegationNode[] = [
+    const list: CanvasDelegationNode[] = [
       {
         id: 'session-root',
         parentId: null,
@@ -176,7 +107,7 @@ export function DelegationTreeSurface({ surface }: { surface: CanvasSurface }) {
     for (const item of treeItems) {
       const view = normalizeTreeToolItem(item)
       for (const child of view.children) {
-        nodes.push({
+        list.push({
           id: child.key,
           parentId: 'session-root',
           agent: child.agent,
@@ -191,11 +122,8 @@ export function DelegationTreeSurface({ surface }: { surface: CanvasSurface }) {
         })
       }
     }
-    return nodes
+    return list
   }, [payload.nodes, payload.source, timelineItems])
-
-  const usingDemo = mode === 'demo' || liveNodes.length === 0
-  const nodes = usingDemo ? DEMO_NODES : liveNodes
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string, CanvasDelegationNode[]>()
@@ -294,34 +222,37 @@ export function DelegationTreeSurface({ surface }: { surface: CanvasSurface }) {
       <div className="flex h-8 shrink-0 items-center justify-between gap-2 px-3.5 text-[11.5px]">
         <div className="flex items-center gap-2.5">
           <span className="font-medium text-foreground">{payload.title || '委派执行树'}</span>
-          <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-emerald-600 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {counts.running}
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-foreground-secondary">
-            <CheckCircle2 className="h-3 w-3 opacity-70" />
-            {counts.completed}
-          </span>
-          {counts.failed > 0 ? (
-            <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-destructive">
-              <XCircle className="h-3 w-3" />
-              {counts.failed}
-            </span>
+          {nodes.length > 0 ? (
+            <>
+              <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {counts.running}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-foreground-secondary">
+                <CheckCircle2 className="h-3 w-3 opacity-70" />
+                {counts.completed}
+              </span>
+              {counts.failed > 0 ? (
+                <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-destructive">
+                  <XCircle className="h-3 w-3" />
+                  {counts.failed}
+                </span>
+              ) : null}
+            </>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => setMode(mode === 'demo' ? 'auto' : 'demo')}
-          className="text-[10.5px] text-foreground-secondary/70 transition-colors hover:text-foreground"
-        >
-          {usingDemo ? (liveNodes.length > 0 ? '切回实时' : '示例视图') : '实时同步'}
-        </button>
       </div>
 
       {/* Tree Canvas */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3.5 pt-1">
-        <div className="space-y-2.5">{roots.map((root) => renderBranch(root, 0))}</div>
-      </div>
+      {nodes.length === 0 ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[12px] text-foreground-secondary">
+          当前会话暂无子代理委派任务
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3.5 pt-1">
+          <div className="space-y-2.5">{roots.map((root) => renderBranch(root, 0))}</div>
+        </div>
+      )}
 
       {/* Node Inspector Footer */}
       {selectedNode ? (
