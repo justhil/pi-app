@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, FileCode2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import { openReviewSessionForPath, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 import type { TimelineDisplayItem } from './timeline-display-items'
 import {
@@ -18,9 +19,7 @@ const FILES_PREVIEW_LIMIT = 6
 function openReviewPanel(path?: string) {
   if (path) openReviewSessionForPath(path)
   else {
-    const store = useUIStore.getState()
-    store.setActivePanel('review')
-    store.revealRightPanel()
+    showRightPanelTab('review')
     window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'session' }))
   }
 }

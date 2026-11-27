@@ -669,6 +669,10 @@ export function ProjectSidebar({
     return out
   }, [pinnedSessions, pinnedSessionMeta, sandboxes, diskPaths, currentWorkspace, sessions, sessionsByWorkspace, projectDisplayNames, t])
 
+  // Every hook must run before the collapsed early return: the sidebar stays mounted while collapsed.
+  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
+  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
+
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-1">
@@ -691,9 +695,6 @@ export function ProjectSidebar({
       </div>
     )
   }
-
-  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
-  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
 
   const handleQuickNewThread = () => {
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {

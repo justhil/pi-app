@@ -78,6 +78,10 @@ vi.mock('../wsl/runtime-config', () => ({
   getAgentRuntimeConfig: vi.fn(() => ({ mode: 'host', distro: null })),
 }))
 vi.mock('../wsl/sdk-resolve', () => ({ assertWslSdkAvailable: vi.fn() }))
+// The post-install cleanup touches the real agent dir; keep the test hermetic.
+vi.mock('../google-ai-plan/service', () => ({
+  cleanupObsoleteGoogleAiPlanExtension: vi.fn(() => ({ removed: false, builtinInSdk: false })),
+}))
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '') },
   BrowserWindow: { getFocusedWindow: mocks.getFocusedWindow, getAllWindows: mocks.getAllWindows },

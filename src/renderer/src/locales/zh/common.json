@@ -54,7 +54,7 @@
     "worktreeCreated": "工作树已创建",
     "worktreeCreateFailed": "创建工作树失败",
     "deleteWorktree": "删除工作树",
-    "deleteWorktreeConfirm": "删除工作树「{{name}}」？磁盘上的该工作树目录将被移除，主目录不受影响。",
+    "deleteWorktreeConfirm": "删除工作树「{{name}}」？磁盘上的该工作树目录会被移除，里面未提交的改动和未跟踪的文件也会一并删除，无法恢复；主目录不受影响。",
     "deleted": "已删除",
     "deleteFailed": "删除失败",
     "deleteMissingFile": "无法删除：缺少会话文件路径",
@@ -88,7 +88,7 @@
       "justNow": "刚刚",
       "dismiss": "从列表移除"
     },
-    "deleteOrphanWorktree": "同时删除已无其他会话的 Worktree 目录（{{name}}）",
+    "deleteOrphanWorktree": "同时删除已无其他会话的 Worktree 目录（{{name}}），其中未提交的改动会一并删除",
     "deletedWithWorktree": "会话与空 Worktree 已一并删除",
     "pinSession": "收藏置顶",
     "unpinSession": "取消置顶",

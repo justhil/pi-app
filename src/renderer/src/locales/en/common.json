@@ -54,7 +54,7 @@
     "worktreeCreated": "Worktree created",
     "worktreeCreateFailed": "Failed to create worktree",
     "deleteWorktree": "Delete worktree",
-    "deleteWorktreeConfirm": "Delete worktree \"{{name}}\"? The worktree directory on disk will be removed without affecting the main checkout.",
+    "deleteWorktreeConfirm": "Delete worktree \"{{name}}\"? Its directory on disk will be removed, including any uncommitted changes and untracked files, which cannot be recovered. The main checkout is not affected.",
     "deleted": "Deleted",
     "deleteFailed": "Delete failed",
     "deleteMissingFile": "Cannot delete: session file path is missing",
@@ -88,7 +88,7 @@
       "justNow": "now",
       "dismiss": "Dismiss from list"
     },
-    "deleteOrphanWorktree": "Also remove the empty Worktree folder ({{name}})",
+    "deleteOrphanWorktree": "Also remove the Worktree folder no other conversation uses ({{name}}), including its uncommitted changes",
     "deletedWithWorktree": "Session and empty Worktree deleted",
     "pinSession": "Pin session",
     "unpinSession": "Unpin session",

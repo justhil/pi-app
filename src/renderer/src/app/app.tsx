@@ -29,10 +29,9 @@ import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
-import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
+import { toggleBrowserPanelFromShortcut } from '@renderer/stores/panel-intent-store'
 import { buildAllRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
-import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 import { RightDock } from '@renderer/features/shell/right-dock'
 import { useCanvasEvents } from '@renderer/features/canvas/use-canvas-events'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
@@ -142,12 +141,7 @@ export default function App() {
       const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
       if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        const hidden = isRightPanelHidden({
-          collapsed: useUIStore.getState().rightPanelCollapsed,
-          expandedOnNarrow: useUIStore.getState().rightPanelExpandedOnNarrow,
-          windowWidth: window.innerWidth,
-        })
-        usePanelIntentStore.getState().toggleRightPanelTab('browser', !hidden)
+        toggleBrowserPanelFromShortcut()
       }
     }
     window.addEventListener('keydown', onKey)

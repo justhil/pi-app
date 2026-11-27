@@ -350,6 +350,19 @@ export interface GoogleAiPlanActionResponse {
   error?: string
 }
 
+/** What a sync would install: the PR head commit, shown to the user before any code is downloaded. */
+export interface GoogleAiPlanUpstreamPreview {
+  repo: string
+  /** Full commit id; null when it cannot be pinned (then nothing can be installed). */
+  sha: string | null
+  prState?: string
+  prMerged?: boolean
+}
+
+export interface GoogleAiPlanSyncPreviewResponse extends GoogleAiPlanActionResponse {
+  upstream: GoogleAiPlanUpstreamPreview | null
+}
+
 // ── Events ──
 export interface EventsSubscribeRequest { channels?: string[] }
 export interface EventsSubscribeResponse { subscriptionId: string }
@@ -389,9 +402,10 @@ export interface IpcMethodMap {
   'pi.models.fetch': { request: PiModelsFetchRequest; response: PiModelsFetchResponse }
   'pi.models.catalog': { request: { force?: boolean }; response: UpstreamCatalogSnapshot }
   'googleAiPlan.status': { request: Record<string, never>; response: GoogleAiPlanStatus }
-  'googleAiPlan.syncExtension': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.previewSync': { request: Record<string, never>; response: GoogleAiPlanSyncPreviewResponse }
+  'googleAiPlan.syncExtension': { request: { sha: string }; response: GoogleAiPlanActionResponse }
   'googleAiPlan.removeExtension': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
-  'googleAiPlan.loginStart': { request: { autoSync?: boolean }; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.loginStart': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
   'googleAiPlan.loginSubmitUrl': { request: { callbackUrl: string }; response: GoogleAiPlanActionResponse }
   'googleAiPlan.loginCancel': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
   'googleAiPlan.logout': { request: Record<string, never>; response: GoogleAiPlanActionResponse }

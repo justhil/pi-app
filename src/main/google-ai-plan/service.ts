@@ -8,13 +8,16 @@ import { isWslRuntimeActive } from '../wsl/runtime-config'
 import { sendEvent } from '../ipc/registry'
 import { invalidateExtensionProbeCache } from '../extension-probe-cache'
 import type { ModelEntry } from '../active-sdk-models-core'
+import type { GoogleAiPlanUpstreamPreview } from '@shared/ipc-contract'
 import {
   GOOGLE_AI_PLAN_PROVIDER_ID,
   UPSTREAM_PR_NUMBER,
   UPSTREAM_PR_URL,
   extractClientCredentialsFromSource,
   fetchAndInstallGoogleAiPlanExtension,
+  isPinnedCommitSha,
   readInstalledGoogleAiPlanExtension,
+  resolveUpstreamPrRef,
   removeGoogleAiPlanExtensionDir,
   type GoogleAiPlanClientConfig,
   type GoogleAiPlanModelDef,
@@ -249,7 +252,35 @@ export function getGoogleAiPlanStatus(): GoogleAiPlanStatus {
   }
 }
 
-export async function syncGoogleAiPlanExtension(): Promise<{
+/** Look up which commit a sync would install, without downloading or installing anything. */
+export async function previewGoogleAiPlanSync(): Promise<{
+  ok: boolean
+  status: GoogleAiPlanStatus
+  upstream: GoogleAiPlanUpstreamPreview | null
+  error?: string
+}> {
+  if (isWslRuntimeActive()) {
+    return { ok: false, status: getGoogleAiPlanStatus(), upstream: null, error: 'WSL_UNSUPPORTED' }
+  }
+  try {
+    const ref = await resolveUpstreamPrRef(proxyAwareFetch)
+    return {
+      ok: true,
+      status: getGoogleAiPlanStatus(),
+      upstream: {
+        repo: ref.repo,
+        sha: isPinnedCommitSha(ref.sha) ? ref.sha : null,
+        ...(ref.prState ? { prState: ref.prState } : {}),
+        ...(ref.prMerged !== undefined ? { prMerged: ref.prMerged } : {}),
+      },
+    }
+  } catch (err) {
+    return { ok: false, status: getGoogleAiPlanStatus(), upstream: null, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** Install the extension from `expectedSha`, the commit the user confirmed in the preview. */
+export async function syncGoogleAiPlanExtension(expectedSha: string): Promise<{
   ok: boolean
   status: GoogleAiPlanStatus
   error?: string
@@ -267,7 +298,7 @@ export async function syncGoogleAiPlanExtension(): Promise<{
   }
   const agentDir = resolveActiveAgentDir()
   try {
-    await fetchAndInstallGoogleAiPlanExtension(agentDir, { fetchImpl: proxyAwareFetch })
+    await fetchAndInstallGoogleAiPlanExtension(agentDir, { expectedSha, fetchImpl: proxyAwareFetch })
     invalidateExtensionProbeCache()
     await refreshLiveWorkers(true)
     notifyRuntimeChanged()
@@ -306,9 +337,11 @@ export async function removeGoogleAiPlanExtension(): Promise<{
   }
 }
 
-export async function startGoogleAiPlanLogin(opts?: {
-  autoSync?: boolean
-}): Promise<{ ok: boolean; status: GoogleAiPlanStatus; error?: string }> {
+/**
+ * Start the OAuth login. The extension is never downloaded from here: installing runs code from the
+ * PR, so it only happens through the confirmed sync (the renderer asks first, then retries the login).
+ */
+export async function startGoogleAiPlanLogin(): Promise<{ ok: boolean; status: GoogleAiPlanStatus; error?: string }> {
   if (isWslRuntimeActive()) {
     return { ok: false, status: getGoogleAiPlanStatus(), error: 'WSL_UNSUPPORTED' }
   }
@@ -323,20 +356,9 @@ export async function startGoogleAiPlanLogin(opts?: {
     : null
 
   if (!cleanup.builtinInSdk) {
-    let ext = readInstalledGoogleAiPlanExtension(agentDir)
-    if ((!ext.installed || !ext.client) && opts?.autoSync !== false) {
-      try {
-        await fetchAndInstallGoogleAiPlanExtension(agentDir, { fetchImpl: proxyAwareFetch })
-        invalidateExtensionProbeCache()
-        await refreshLiveWorkers(true)
-        ext = readInstalledGoogleAiPlanExtension(agentDir)
-      } catch (err) {
-        return {
-          ok: false,
-          status: getGoogleAiPlanStatus(),
-          error: err instanceof Error ? err.message : String(err),
-        }
-      }
+    const ext = readInstalledGoogleAiPlanExtension(agentDir)
+    if (!ext.installed || !ext.client) {
+      return { ok: false, status: getGoogleAiPlanStatus(), error: 'EXTENSION_NOT_INSTALLED' }
     }
     client = ext.client
   }

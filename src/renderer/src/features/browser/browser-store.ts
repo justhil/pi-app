@@ -13,6 +13,7 @@ import {
 import { ipcClient, onBrowserEvent } from '@renderer/lib/ipc-client'
 import i18n from '@renderer/lib/i18n'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { toggleBrowserPanelFromShortcut } from '@renderer/stores/panel-intent-store'
 
 export interface BrowserState {
   tabs: Record<string, BrowserTabInfo>
@@ -331,7 +332,8 @@ export function ensureBrowserSubscription(): void {
       if (event.state === 'completed') toast.success(i18n.t('browser:toast.downloaded', { name: event.fileName }))
       else if (event.state === 'interrupted') toast.error(i18n.t('browser:toast.downloadFailed', { name: event.fileName }))
     } else if (event.type === 'shortcut') {
-      if (event.action === 'toggle-stage') useUIStore.getState().toggleBrowserStage()
+      // The Stage view is gone; the shortcut toggles the Browser tab just like it does outside the page.
+      if (event.action === 'toggle-stage') toggleBrowserPanelFromShortcut()
       else for (const l of shortcutListeners) l(event.action)
     }
     for (const listener of sideListeners) listener(event)

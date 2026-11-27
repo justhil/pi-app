@@ -323,6 +323,8 @@ export async function fetchRemoteModelIds(input: {
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         lastError = `HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}`
+        // A rejected key is rejected on every path; report it instead of a later candidate's 404.
+        if (res.status === 401 || res.status === 403) return { ok: false, error: lastError }
         continue
       }
       const data = (await res.json()) as {

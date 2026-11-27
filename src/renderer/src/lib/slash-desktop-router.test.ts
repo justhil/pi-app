@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), requestExtensionConfig: vi.fn(), setActivePanel: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  requestExtensionConfig: vi.fn(),
+  setActivePanel: vi.fn(),
+  showRightPanelTab: vi.fn(),
+}))
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: mocks.invoke } }))
+vi.mock('@renderer/stores/right-dock-store', () => ({ showRightPanelTab: mocks.showRightPanelTab }))
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), error: vi.fn() } }))
 vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
@@ -19,6 +25,7 @@ beforeEach(() => {
   mocks.invoke.mockReset()
   mocks.requestExtensionConfig.mockReset()
   mocks.setActivePanel.mockReset()
+  mocks.showRightPanelTab.mockReset()
 })
 
 describe('routeDesktopSlashBeforeSend', () => {
@@ -37,6 +44,7 @@ describe('routeDesktopSlashBeforeSend', () => {
   it('opens the panel an open-panel command names', async () => {
     mocks.invoke.mockResolvedValue({ behavior: 'open-panel', meta: { adapterId: '@agnishc/edb-context-viewer', panelId: 'context' } })
     expect(await routeDesktopSlashBeforeSend('/context')).toEqual({ handled: true })
-    expect(mocks.setActivePanel).toHaveBeenCalledWith('context')
+    // Opening goes through the dock so the tab is opened and the right pane revealed, not just selected.
+    expect(mocks.showRightPanelTab).toHaveBeenCalledWith('context')
   })
 })

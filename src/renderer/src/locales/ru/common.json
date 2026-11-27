@@ -54,7 +54,7 @@
     "worktreeCreated": "Worktree создан",
     "worktreeCreateFailed": "Не удалось создать worktree",
     "deleteWorktree": "Удалить worktree",
-    "deleteWorktreeConfirm": "Удалить worktree «{{name}}»? Его папка на диске будет удалена, основная копия не пострадает.",
+    "deleteWorktreeConfirm": "Удалить worktree «{{name}}»? Его папка на диске будет удалена вместе с незакоммиченными изменениями и неотслеживаемыми файлами — восстановить их будет нельзя. Основная копия не пострадает.",
     "deleted": "Удалено",
     "deleteFailed": "Не удалось удалить",
     "deleteMissingFile": "Нельзя удалить: путь к файлу сессии отсутствует",
@@ -88,7 +88,7 @@
       "justNow": "сейчас",
       "dismiss": "Убрать из списка"
     },
-    "deleteOrphanWorktree": "Также удалить пустой каталог Worktree ({{name}})",
+    "deleteOrphanWorktree": "Также удалить каталог Worktree, который больше не используют другие беседы ({{name}}), вместе с незакоммиченными изменениями",
     "deletedWithWorktree": "Сессия и пустой Worktree удалены",
     "pinSession": "Закрепить диалог",
     "unpinSession": "Открепить диалог",

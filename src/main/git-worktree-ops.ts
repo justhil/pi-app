@@ -57,9 +57,16 @@ export async function createGitWorktree(
 
     // When checking out a GitHub PR, fetch refs/pull/<N>/head directly so even external fork PRs work seamlessly!
     if (options?.pullRequestNumber && options.pullRequestNumber > 0) {
+      // Opening the same PR again: hand back the worktree that already has its branch.
+      const existingTree = listing.trees.find((tree) => tree.branch === branch)
+      if (existingTree) {
+        return { ok: true, path: existingTree.path, branch, baseRef: `pull/${options.pullRequestNumber}/head` }
+      }
+      // No forced (`+`) refspec: an existing local branch only fast-forwards, so commits made on it
+      // are never thrown away. If it has diverged the fetch fails and the branch is reused as is.
       const prFetch = await gitExec(
         repoPath,
-        ['fetch', '--quiet', 'origin', `+refs/pull/${options.pullRequestNumber}/head:refs/heads/${branch}`],
+        ['fetch', '--quiet', 'origin', `refs/pull/${options.pullRequestNumber}/head:refs/heads/${branch}`],
         { timeout: 20000 },
       ).catch(() => ({ status: 1, stdout: '', stderr: '' }))
       if (prFetch.status === 0) {

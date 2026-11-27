@@ -17,7 +17,7 @@ import {
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
-import type { GoogleAiPlanStatus } from '@shared/ipc-contract'
+import type { GoogleAiPlanStatus, GoogleAiPlanUpstreamPreview } from '@shared/ipc-contract'
 import { cn } from '@renderer/lib/utils'
 import { btnOutline, btnPrimary, inputCls } from './settings-controls'
 
@@ -32,6 +32,11 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
   const [manualUrl, setManualUrl] = useState('')
   const [errorText, setErrorText] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // Installing runs code from the PR head, so every install shows the exact commit and waits for a yes.
+  const [pendingSync, setPendingSync] = useState<{
+    upstream: GoogleAiPlanUpstreamPreview & { sha: string }
+    thenLogin: boolean
+  } | null>(null)
   const prevLoginActiveRef = useRef(false)
   const onChangedRef = useRef(onChanged)
   onChangedRef.current = onChanged
@@ -65,6 +70,15 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
     })
   }, [refreshStatus])
 
+  const describeError = useCallback(
+    (code: string | undefined) => {
+      if (code === 'UPSTREAM_CHANGED') return t('models.googleAiPlanUpstreamChanged')
+      if (code === 'UPSTREAM_SHA_UNAVAILABLE') return t('models.googleAiPlanShaUnavailable')
+      return code || t('models.saveFailed')
+    },
+    [t],
+  )
+
   const applyResponse = useCallback(
     (res: { ok: boolean; status?: GoogleAiPlanStatus; error?: string } | null | undefined, successToast?: string) => {
       if (res?.status) {
@@ -72,7 +86,7 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
         setStatus(res.status)
       }
       if (!res?.ok) {
-        const msg = res?.error || t('models.saveFailed')
+        const msg = describeError(res?.error)
         setErrorText(msg)
         toast.error(msg)
         return false
@@ -84,19 +98,34 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
       void onChangedRef.current?.()
       return true
     },
-    [t],
+    [describeError],
   )
 
-  const handleSync = async () => {
+  const reportError = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    setErrorText(msg)
+    toast.error(msg)
+  }
+
+  /** Step 1: look up which commit would be installed and ask before anything is downloaded. */
+  const handleSync = async (thenLogin = false) => {
     setBusyAction('sync')
     setErrorText(null)
     try {
-      const res = await ipcClient.invoke('googleAiPlan.syncExtension', {})
-      applyResponse(res, t('models.googleAiPlanSyncedToast'))
+      const res = await ipcClient.invoke('googleAiPlan.previewSync', {})
+      if (!res?.ok || !res.upstream) {
+        applyResponse(res)
+        return
+      }
+      if (res.status) setStatus(res.status)
+      const { upstream } = res
+      if (!upstream.sha) {
+        applyResponse({ ok: false, status: res.status, error: 'UPSTREAM_SHA_UNAVAILABLE' })
+        return
+      }
+      setPendingSync({ upstream: { ...upstream, sha: upstream.sha }, thenLogin })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setErrorText(msg)
-      toast.error(msg)
+      reportError(err)
     } finally {
       setBusyAction(null)
     }
@@ -105,16 +134,41 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
   const handleStartLogin = async () => {
     setBusyAction('login')
     setErrorText(null)
+    let needsExtension = false
     try {
-      const res = await ipcClient.invoke('googleAiPlan.loginStart', { autoSync: true })
-      applyResponse(res)
+      const res = await ipcClient.invoke('googleAiPlan.loginStart', {})
+      if (!res?.ok && res?.error === 'EXTENSION_NOT_INSTALLED') {
+        // Login never downloads code by itself: confirm the install first, then sign in.
+        if (res.status) setStatus(res.status)
+        needsExtension = true
+      } else {
+        applyResponse(res)
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setErrorText(msg)
-      toast.error(msg)
+      reportError(err)
     } finally {
       setBusyAction(null)
     }
+    if (needsExtension) await handleSync(true)
+  }
+
+  /** Step 2: install exactly the confirmed commit (Main refuses if the PR head moved meanwhile). */
+  const handleConfirmSync = async () => {
+    const pending = pendingSync
+    setPendingSync(null)
+    if (!pending) return
+    setBusyAction('sync')
+    setErrorText(null)
+    let installed = false
+    try {
+      const res = await ipcClient.invoke('googleAiPlan.syncExtension', { sha: pending.upstream.sha })
+      installed = applyResponse(res, t('models.googleAiPlanSyncedToast'))
+    } catch (err) {
+      reportError(err)
+    } finally {
+      setBusyAction(null)
+    }
+    if (installed && pending.thenLogin) await handleStartLogin()
   }
 
   const handleSubmitManualUrl = async () => {
@@ -490,6 +544,48 @@ export function GoogleAiPlanSection({ onChanged }: GoogleAiPlanSectionProps) {
         ) : null}
       </div>
 
+      <ConfirmDialog
+        open={!!pendingSync}
+        destructive
+        title={t('models.googleAiPlanSyncConfirmTitle')}
+        message={t('models.googleAiPlanSyncConfirmMessage')}
+        extra={
+          pendingSync ? (
+            <dl
+              data-testid="google-ai-plan-sync-confirm-details"
+              className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-[12px]"
+            >
+              <dt className="text-muted-foreground">{t('models.googleAiPlanSyncConfirmRepo')}</dt>
+              <dd className="break-all font-mono text-foreground">{pendingSync.upstream.repo}</dd>
+              <dt className="text-muted-foreground">{t('models.googleAiPlanSyncConfirmCommit')}</dt>
+              <dd className="break-all font-mono text-foreground">{pendingSync.upstream.sha}</dd>
+              <dt className="text-muted-foreground">{t('models.googleAiPlanSyncConfirmPrState')}</dt>
+              <dd className="text-foreground">
+                {pendingSync.upstream.prMerged
+                  ? t('models.googleAiPlanPrMerged')
+                  : pendingSync.upstream.prState === 'closed'
+                    ? t('models.googleAiPlanPrClosed')
+                    : t('models.googleAiPlanPrOpen')}
+              </dd>
+              <dd className="col-span-2 pt-1">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  onClick={() =>
+                    openExternal(`https://github.com/${pendingSync.upstream.repo}/commit/${pendingSync.upstream.sha}`)
+                  }
+                >
+                  <ExternalLink className="h-3 w-3" strokeWidth={2} />
+                  {t('models.googleAiPlanViewCommit')}
+                </button>
+              </dd>
+            </dl>
+          ) : null
+        }
+        confirmLabel={t('models.googleAiPlanSyncConfirmBtn')}
+        onConfirm={() => void handleConfirmSync()}
+        onCancel={() => setPendingSync(null)}
+      />
       <ConfirmDialog
         open={confirmRemove}
         destructive

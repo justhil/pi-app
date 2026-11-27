@@ -128,6 +128,21 @@ export function isPanelVisibleInRightDock(panelId: string): boolean {
   return topActive === panelId || bottomActive === panelId
 }
 
+/**
+ * Show a panel from outside the dock (file links, palette, slash commands).
+ * Setting activePanel alone is not enough: RightDock is unmounted while the right pane is hidden
+ * and does not react when activePanel already names a tab that was closed, so open the tab here.
+ */
+export function showRightPanelTab(panelId: string): void {
+  const ui = useUIStore.getState()
+  if (ui.rightPanelCatalog.some((c) => c.id === panelId)) {
+    useRightDockStore.getState().openTab(panelId, { focus: true })
+  } else {
+    ui.setActivePanel(panelId)
+  }
+  useUIStore.getState().revealRightPanel()
+}
+
 function collapseRightPanelCleanly(): void {
   useUIStore.setState({
     rightPanelCollapsed: true,
@@ -170,10 +185,15 @@ export const useRightDockStore = create<RightDockState>()(
         const alreadyOpen = cur.openTabIds.includes(panelId)
         const nextOpen = alreadyOpen ? cur.openTabIds : [...cur.openTabIds, panelId]
 
-        if (opts?.slot === 'bottom' && nextOpen.length > 1) {
-          const nextBottom = cur.bottomTabIds.includes(panelId)
-            ? cur.bottomTabIds
-            : [...cur.bottomTabIds, panelId]
+        const requestedBottom =
+          opts?.slot === 'bottom' && nextOpen.length > 1
+            ? cur.bottomTabIds.includes(panelId)
+              ? cur.bottomTabIds
+              : [...cur.bottomTabIds, panelId]
+            : null
+        // The top pane can never be emptied: if `panelId` would be its last tab, open it normally instead.
+        if (requestedBottom && computeDockSlots(nextOpen, requestedBottom).bottomIds.includes(panelId)) {
+          const nextBottom = requestedBottom
           const { topIds } = computeDockSlots(nextOpen, nextBottom)
           const nextTopActive =
             cur.topActive && topIds.includes(cur.topActive) ? cur.topActive : (topIds[0] ?? panelId)

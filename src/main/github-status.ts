@@ -100,11 +100,22 @@ export async function resolveGitHubRepo(cwd: string): Promise<
   return { ok: true, repo: parsed }
 }
 
+/**
+ * GH_TOKEN / GITHUB_TOKEN belong to github.com (and GitHub-hosted *.ghe.com), as in the gh CLI.
+ * The host comes from the repository's remote URL, so any other host — even one that merely
+ * contains "github" — must authenticate through `gh auth token --hostname`, which is per host.
+ */
+export function envGitHubTokenForHost(host: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const h = host.toLowerCase()
+  if (h !== 'github.com' && !h.endsWith('.ghe.com')) return null
+  return (env.GH_TOKEN || env.GITHUB_TOKEN || '').trim() || null
+}
+
 async function resolveGitHubToken(host: string): Promise<string | null> {
   const cached = tokenCache.get(host)
   if (cached && cached.expiresAt > Date.now()) return cached.token
 
-  const envToken = (process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '').trim()
+  const envToken = envGitHubTokenForHost(host)
   if (envToken) {
     tokenCache.set(host, { token: envToken, expiresAt: Date.now() + TOKEN_TTL_MS })
     return envToken

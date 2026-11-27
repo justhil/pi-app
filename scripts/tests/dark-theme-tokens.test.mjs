@@ -19,7 +19,9 @@ describe('dark theme visual tokens (VS Code Dark Modern)', () => {
     const dark = darkBlock(css)
     // Official Dark Modern workbench tokens (theme-defaults/themes/dark_modern.json)
     assert.match(dark, /--bg-base:\s*#1f1f1f/i, 'editor.background')
-    assert.match(dark, /--surface-sidebar:\s*#181818/i, 'sideBar.background')
+    // The 4-column workbench draws the sidebar on the window frame colour (seamless chrome).
+    assert.match(dark, /--surface-sidebar:\s*#161618/i, 'sideBar.background')
+    assert.match(dark, /--surface-frame:\s*#161618/i, 'sidebar matches the window frame')
     assert.match(dark, /--border-base:\s*#2b2b2b/i, 'sideBar.border / panel.border')
     assert.match(dark, /--text-primary:\s*#cccccc/i, 'editor.foreground / foreground')
     assert.match(dark, /--text-secondary:\s*#9d9d9d/i, 'descriptionForeground')

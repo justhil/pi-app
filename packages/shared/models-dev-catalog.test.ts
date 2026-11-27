@@ -123,6 +123,18 @@ describe('models-dev-catalog', () => {
     expect(patch.cost?.input).toBe(3)
   })
 
+  it('reports nothing to fill once a non-reasoning model has every spec field', () => {
+    const snap = compactModelsDevResponse(SAMPLE_MODELS_DEV, { updatedAt: 1000 })
+    const base = resolveUpstreamModelSpec(snap, 'claude-sonnet-4-5')!
+    const spec = { ...base, reasoning: false, thinkingLevels: [] }
+    const filled = { id: 'plain-model', ...computeSpecFillPatch({ id: 'plain-model' }, spec) }
+
+    expect(filled).not.toHaveProperty('reasoning')
+    expect(computeSpecFillPatch(filled, spec)).toEqual({})
+    // A reasoning spec still turns reasoning on for an entry that never set it.
+    expect(computeSpecFillPatch({ id: 'plain-model' }, base).reasoning).toBe(true)
+  })
+
   it('ranks remote /v1/models enriched with models.dev ahead of general catalog matches', () => {
     const snap = compactModelsDevResponse(SAMPLE_MODELS_DEV, { updatedAt: 1000 })
     const suggestions = searchModelSuggestions('sonnet', {

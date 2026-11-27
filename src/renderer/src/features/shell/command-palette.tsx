@@ -14,6 +14,7 @@ import {
 import { cn } from '@renderer/lib/utils'
 import { OPEN_BRANCH_PICKER } from '@renderer/features/git/branch-status'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import { listAttentionSessions } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -29,9 +30,7 @@ export type CommandPaletteAction = {
 }
 
 function openRightPanel(panelId: string) {
-  const store = useUIStore.getState()
-  store.setActivePanel(panelId)
-  store.revealRightPanel()
+  showRightPanelTab(panelId)
 }
 
 function focusComposer() {

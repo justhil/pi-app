@@ -111,6 +111,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:googleAiPlan.loginStart',
   'ipc:googleAiPlan.loginSubmitUrl',
   'ipc:googleAiPlan.logout',
+  'ipc:googleAiPlan.previewSync',
   'ipc:googleAiPlan.removeExtension',
   'ipc:googleAiPlan.status',
   'ipc:googleAiPlan.syncExtension',
