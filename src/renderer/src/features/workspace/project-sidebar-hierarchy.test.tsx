@@ -124,7 +124,7 @@ describe('repository / checkout / session sidebar', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'needle' } })
     expect(screen.getByText('Build sidebar')).toBeInTheDocument()
     expect(screen.getByText('Review findings')).toBeInTheDocument()
-    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(1)
+    expect(container.querySelectorAll('.sidebar-session-list > [data-session-file]')).toHaveLength(1)
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
     expectCollapsedChild('Review findings')
   })

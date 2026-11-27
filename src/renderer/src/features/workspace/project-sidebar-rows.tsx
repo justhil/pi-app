@@ -36,6 +36,7 @@ import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
 
 const NO_CHILDREN: SubagentSessionChild[] = []
+const VISIBLE_SESSION_LIMIT = 5
 
 export function ProjectSessionTree({
   workspacePath,
@@ -64,6 +65,7 @@ export function ProjectSessionTree({
   const subagentSessionGroup = useUIStore((st) => st.subagentSessionGroup)
   const catalogReady = useToolCardCatalogReady()
   const [expandedSessionFiles, setExpandedSessionFiles] = useState<Set<string>>(() => new Set())
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const isCurrentProject = workspacePathsEqual(currentWorkspace, workspacePath)
   // Only the viewed project has live subagents; the memoized selector keeps the same array
   // across streaming tokens so this tree does not re-render on every delta.
@@ -109,6 +111,15 @@ export function ProjectSessionTree({
   }, [projectSessions])
   const revealedSelection = useRef('')
   const selectedKey = workspacePathsEqual(currentWorkspace, workspacePath) ? workspacePathKey(historySessionFile) : ''
+  let selectedRoot = selectedKey ? tree.byKey.get(selectedKey) || [...tree.byKey.values()].find(
+    (node) => node.liveChildren.some((child) => workspacePathKey(child.sessionFile) === selectedKey),
+  ) : undefined
+  while (selectedRoot?.parentKey) selectedRoot = tree.byKey.get(selectedRoot.parentKey)
+  const shownRoots = showAllSessions || searchQuery.trim()
+    ? visibleRoots
+    : visibleRoots.filter((node, index) => index < VISIBLE_SESSION_LIMIT || node.key === selectedRoot?.key)
+  const hiddenCount = visibleRoots.length - shownRoots.length
+  const sessionsId = `project-sessions-${encodeURIComponent(workspacePathKey(workspacePath))}`
 
   useEffect(() => {
     if (revealedSelection.current === selectedKey) return
@@ -407,13 +418,27 @@ export function ProjectSessionTree({
           </div>
         </div>
       ) : null}
-      {loading ? (
-        <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
-      ) : visibleRoots.length === 0 ? (
-        !error && !pendingNew && projectSessions.length === 0 && (
-          <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
-        )
-      ) : visibleRoots.map((node) => renderSession(node))}
+      <div id={sessionsId} className={cn('sidebar-session-list', showAllSessions && !searchQuery.trim() && 'max-h-80 overflow-y-auto overscroll-contain')}>
+        {loading ? (
+          <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
+        ) : visibleRoots.length === 0 ? (
+          !error && !pendingNew && projectSessions.length === 0 && (
+            <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
+          )
+        ) : shownRoots.map((node) => renderSession(node))}
+      </div>
+      {!loading && !searchQuery.trim() && (hiddenCount > 0 || (showAllSessions && visibleRoots.length > VISIBLE_SESSION_LIMIT)) && (
+        <button
+          type="button"
+          aria-expanded={showAllSessions}
+          aria-controls={sessionsId}
+          onClick={() => setShowAllSessions((previous) => !previous)}
+          className="nav-row sidebar-session-hit flex min-h-[32px] w-full items-center gap-1.5 rounded-lg pl-8 pr-2 py-1 text-left text-[12px] text-foreground-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+        >
+          <ChevronRight className="chevron-expand h-3 w-3 shrink-0" data-open={showAllSessions ? 'true' : 'false'} aria-hidden />
+          {t(showAllSessions ? 'common:sidebar.showFewerSessions' : 'common:sidebar.showMoreSessions', { count: hiddenCount })}
+        </button>
+      )}
     </div>
   )
 }
