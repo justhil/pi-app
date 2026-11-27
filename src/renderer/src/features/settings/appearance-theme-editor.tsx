@@ -442,6 +442,233 @@ const COLOR_LABEL: Record<(typeof THEME_COLOR_KEYS)[number], string> = {
   userBubble: 'colorUserBubble',
   codeBg: 'colorCode',
   border: 'colorBorder',
+  frame: 'colorFrame',
+}
+
+/** Real-time miniature workbench preview reflecting colors, frame geometry, materials, backdrop & message style. */
+function ThemeLivePreviewCard({
+  variant,
+  configured,
+}: {
+  variant: ThemeVariantKey
+  configured: ThemeVariant
+}) {
+  const { t } = useTranslation()
+  const surface = configured.surface
+  const ink = configured.ink
+  const accent = configured.accent
+  const sidebar = configured.colors?.sidebar ?? mixColors(surface, '#000000', 0.045)
+  const frame = configured.colors?.frame ?? sidebar
+  const chatBg = configured.colors?.chat ?? surface
+  const bubbleBg = configured.colors?.userBubble ?? mixColors(surface, ink, 0.04)
+  const codeBg = configured.colors?.codeBg ?? mixColors(surface, ink, 0.03)
+  const border = configured.colors?.border ?? mixColors(surface, ink, 0.12)
+  const mutedInk = mixColors(ink, surface, 0.45)
+  const frameStyle = configured.frameStyle ?? 'paper'
+  const messageStyle = configured.messageStyle ?? 'bubble'
+  const material = configured.surfaceMaterial ?? 'solid'
+  const backdrop = configured.backdropPreset ?? 'none'
+  const accentPresence = configured.accentPresence ?? 'subtle'
+  const r = configured.radius ?? 10
+  const isDark = variant === 'dark'
+
+  const backdropCss = (() => {
+    if (backdrop === 'aurora') {
+      return isDark
+        ? 'radial-gradient(circle at 20% 20%, rgba(64,148,184,0.45), transparent 60%), radial-gradient(circle at 80% 75%, rgba(84,98,176,0.38), transparent 60%), ' + frame
+        : 'radial-gradient(circle at 20% 20%, rgba(125,196,228,0.45), transparent 60%), radial-gradient(circle at 80% 75%, rgba(180,192,235,0.38), transparent 60%), ' + frame
+    }
+    if (backdrop === 'ambient') {
+      return isDark
+        ? 'radial-gradient(circle at 22% 24%, rgba(44,98,112,0.42), transparent 65%), radial-gradient(circle at 75% 84%, rgba(56,74,118,0.35), transparent 65%), ' + frame
+        : 'radial-gradient(circle at 22% 24%, rgba(168,212,206,0.4), transparent 65%), radial-gradient(circle at 75% 84%, rgba(236,214,194,0.38), transparent 65%), ' + frame
+    }
+    if (backdrop === 'mesh') {
+      return `radial-gradient(circle at 22% 22%, ${accent}38, transparent 62%), radial-gradient(circle at 82% 78%, ${accent}26, transparent 62%), ${frame}`
+    }
+    if (backdrop === 'dots') {
+      return `radial-gradient(${mutedInk}40 1px, transparent 1px), ${frame}`
+    }
+    if (backdrop === 'grid') {
+      return `linear-gradient(to right, ${mutedInk}22 1px, transparent 1px), linear-gradient(to bottom, ${mutedInk}22 1px, transparent 1px), ${frame}`
+    }
+    return frame
+  })()
+
+  const composerBg =
+    material === 'liquid-glass' || material === 'frosted'
+      ? isDark
+        ? `${surface}99`
+        : `${surface}cc`
+      : surface
+  const composerShadow =
+    material === 'bevel'
+      ? isDark
+        ? 'inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(0,0,0,0.28)'
+        : 'inset 0 1px 0 rgba(255,255,255,0.92), 0 3px 8px rgba(15,23,42,0.08)'
+      : material === 'liquid-glass'
+        ? isDark
+          ? 'inset 0 1px 0 rgba(255,255,255,0.32), 0 4px 14px rgba(0,0,0,0.35)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.95), 0 3px 10px rgba(15,23,42,0.08)'
+        : 'none'
+
+  return (
+    <div className="settings-row">
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-[11.5px] text-foreground-secondary">
+          <span className="font-medium text-foreground">{t('settings:appearance.livePreviewTitle')}</span>
+          <span className="font-mono text-[10.5px] text-foreground-secondary/75">
+            {[frameStyle, material, backdrop !== 'none' ? backdrop : null].filter(Boolean).join(' · ')}
+          </span>
+        </div>
+        <div
+          aria-hidden
+          className="relative flex h-[132px] w-full overflow-hidden rounded-xl border"
+          style={{
+            background: backdropCss,
+            backgroundSize: backdrop === 'dots' ? '10px 10px' : backdrop === 'grid' ? '14px 14px' : undefined,
+            borderColor: border,
+            padding: frameStyle === 'island' ? '6px' : '0',
+            gap: frameStyle === 'island' ? '6px' : '0',
+          }}
+        >
+          {/* Far-left Activity Rail */}
+          <div className="flex w-7 shrink-0 flex-col items-center justify-between py-2.5">
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="h-3.5 w-3.5 rounded-[4px]" style={{ background: mixColors(frame, ink, 0.14) }} />
+              <span
+                className="h-3.5 w-3.5 rounded-[4px]"
+                style={{
+                  background: accentPresence === 'subtle' ? mixColors(frame, ink, 0.12) : `${accent}26`,
+                  border: accentPresence === 'vivid' ? `1px solid ${accent}60` : undefined,
+                }}
+              />
+              <span className="h-3 w-3 rounded-[4px]" style={{ background: mixColors(frame, ink, 0.08) }} />
+            </div>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: mixColors(frame, ink, 0.2) }} />
+          </div>
+
+          {/* Left Sidebar */}
+          <div
+            className="hidden w-[112px] shrink-0 flex-col gap-1.5 px-2 py-2.5 sm:flex"
+            style={{ background: backdrop === 'none' ? sidebar : 'transparent' }}
+          >
+            <div className="text-[10px] font-semibold" style={{ color: ink }}>pi</div>
+            <div
+              className="h-4 rounded-md px-1.5"
+              style={{
+                background: accentPresence === 'subtle' ? mixColors(sidebar, ink, 0.08) : `${accent}20`,
+                borderLeft: accentPresence !== 'subtle' ? `2px solid ${accent}` : undefined,
+              }}
+            />
+            <div className="h-2.5 w-4/5 rounded" style={{ background: mixColors(sidebar, ink, 0.1) }} />
+            <div className="h-2.5 w-2/3 rounded" style={{ background: mixColors(sidebar, ink, 0.08) }} />
+          </div>
+
+          {/* Center Chat Surface */}
+          <div
+            className="flex min-w-0 flex-1 flex-col justify-between px-3 py-2.5"
+            style={{
+              background: backdrop !== 'none' ? `${chatBg}dc` : chatBg,
+              borderRadius:
+                frameStyle === 'flat'
+                  ? '0px'
+                  : frameStyle === 'island'
+                    ? `${Math.min(14, r)}px`
+                    : `${Math.min(14, r)}px 0 0 0`,
+              border: frameStyle === 'island' ? `1px solid ${border}` : undefined,
+              borderLeft: frameStyle === 'flat' ? `1px solid ${border}` : undefined,
+            }}
+          >
+            <div className="flex flex-col gap-1.5">
+              {/* User message */}
+              <div
+                className={cn(
+                  'px-2 py-1 text-[9.5px] leading-tight',
+                  messageStyle === 'bubble' ? 'ml-auto max-w-[68%] rounded-lg' : 'w-full rounded-md',
+                )}
+                style={{
+                  background: accentPresence === 'vivid' ? `${accent}1c` : bubbleBg,
+                  color: ink,
+                  borderLeft: messageStyle === 'editorial' ? `2px solid ${accent}` : undefined,
+                }}
+              >
+                {t('settings:appearance.livePreviewPrompt')}
+              </div>
+
+              {/* Assistant prose + mini code pill */}
+              <div
+                className="flex flex-col gap-1 rounded-md px-1.5 py-1"
+                style={{
+                  border: messageStyle === 'card' ? `1px solid ${border}` : undefined,
+                  fontFamily:
+                    configured.proseFont === 'display' && configured.fontDisplay
+                      ? configured.fontDisplay === 'serif'
+                        ? 'var(--font-serif-base)'
+                        : configured.fontDisplay
+                      : undefined,
+                }}
+              >
+                <div className="text-[10px] leading-snug" style={{ color: ink }}>
+                  {t('settings:appearance.livePreviewReply')}
+                </div>
+                <div
+                  className="flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[8.5px]"
+                  style={{ background: codeBg, color: mutedInk, border: `1px solid ${border}` }}
+                >
+                  <span style={{ color: configured.diffAdded ?? '#22c55e' }}>+12</span>
+                  <span style={{ color: configured.diffRemoved ?? '#ef4444' }}>-3</span>
+                  <span className="truncate">theme.derive()</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Composer mini preview */}
+            <div
+              className="flex h-6 items-center justify-between px-2"
+              style={{
+                background: composerBg,
+                border: `1px solid ${border}`,
+                borderRadius: `${Math.min(12, Math.max(4, r))}px`,
+                boxShadow: composerShadow,
+              }}
+            >
+              <span className="h-1.5 w-16 rounded-full" style={{ background: `${mutedInk}66` }} />
+              <span
+                className="h-3.5 w-3.5 rounded-full"
+                style={{ background: accentPresence === 'subtle' ? ink : accent }}
+              />
+            </div>
+          </div>
+
+          {/* Mini Right Dock Launchpad */}
+          <div
+            className="hidden w-[96px] shrink-0 flex-col gap-1.5 p-2 md:flex"
+            style={{
+              background: backdrop !== 'none' ? `${chatBg}d4` : chatBg,
+              borderLeft: frameStyle !== 'island' ? `1px solid ${border}` : undefined,
+              border: frameStyle === 'island' ? `1px solid ${border}` : undefined,
+              borderRadius: frameStyle === 'island' ? `${Math.min(14, r)}px` : undefined,
+            }}
+          >
+            <div className="h-3 w-full rounded-full" style={{ border: `1px solid ${border}` }} />
+            <div className="mt-1 grid flex-1 grid-cols-2 gap-1.5">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-lg"
+                  style={{
+                    background: mixColors(chatBg, ink, 0.05),
+                    border: material === 'bevel' ? `1px solid ${border}` : undefined,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionProps) {
@@ -495,6 +722,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
         userBubble: mixColors(configured.surface, configured.ink, 0.035),
         codeBg: mixColors(configured.surface, configured.ink, 0.03),
         border: mixColors(configured.surface, configured.ink, 0.11),
+        frame: configured.colors?.sidebar ?? mixColors(configured.surface, '#000000', 0.045),
       }
     : null
   const displayMode = !configured?.fontDisplay ? 'ui' : configured.fontDisplay === 'serif' ? 'serif' : 'custom'
@@ -535,6 +763,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 
         {configured && derived ? (
           <>
+            <ThemeLivePreviewCard variant={variant} configured={configured} />
             <GroupHeading>{t('settings:appearance.groupColors')}</GroupHeading>
             <SettingRow label={t('settings:appearance.accent')} description={t('settings:appearance.accentDesc')}>
               <ColorField
@@ -933,7 +1162,10 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 const CSS_VARIABLES: { name: string; key: string }[] = [
   { name: '--bg-base', key: 'varSurface' },
   { name: '--chat-bg', key: 'varChat' },
+  { name: '--surface-frame', key: 'varFrame' },
   { name: '--surface-sidebar', key: 'varSidebar' },
+  { name: '--shell-hairline', key: 'varHairline' },
+  { name: '--shell-corner-radius', key: 'varShellCorner' },
   { name: '--message-user-bg', key: 'varUserBubble' },
   { name: '--code-bg', key: 'varCode' },
   { name: '--text-primary', key: 'varText' },

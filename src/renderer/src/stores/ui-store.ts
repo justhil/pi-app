@@ -358,18 +358,25 @@ export const useUIStore = create<UIState>()(
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
-      version: 4,
+      version: 7,
       migrate: (persistedState, version) => {
         const p = persistedState as Partial<UIState>
+        if (version >= 7) return p as UIState
         if (version >= 3) {
-          // v4 widened the default right panel; keep widths the user already dragged wider.
-          return { ...p, rightPanelWidth: Math.max(p.rightPanelWidth ?? 0, DEFAULT_RIGHT_PANEL_WIDTH) } as UIState
+          // v7 opens the right pane with the clean New Tab Launchpad by default and hides the collapsed edge rail.
+          return {
+            ...p,
+            rightPanelWidth: Math.max(p.rightPanelWidth ?? 0, DEFAULT_RIGHT_PANEL_WIDTH),
+            rightPanelCollapsed: false,
+            rightPanelRailIcons: false,
+          } as UIState
         }
         return {
           ...p,
           currentWorkspace: null,
           rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
           rightPanelCollapsed: false,
+          rightPanelRailIcons: false,
         } as UIState
       },
     },

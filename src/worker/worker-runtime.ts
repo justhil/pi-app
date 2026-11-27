@@ -31,6 +31,7 @@ import { capabilitiesExtension } from './worker-capabilities.js'
 import { createPurgeStreamWrapper, type PurgeModelLike, type PurgeStreamFn } from './worker-purge-stream.js'
 import { modelRoutersExtension } from './worker-model-routers.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
+import { canvasToolsExtension } from './worker-canvas-tools.js'
 import { codemodeStatsExtension } from './worker-codemode-stats.js'
 import { usageMetricsExtension } from './worker-usage-metrics.js'
 
@@ -294,7 +295,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       agentDir,
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
-        extensionFactories: [...piBuiltinExtensions(sdk), codemodeStatsExtension, capabilitiesExtension, browserToolsExtension, modelRoutersExtension(agentDir), usageMetricsExtension],
+        extensionFactories: [...piBuiltinExtensions(sdk), codemodeStatsExtension, capabilitiesExtension, browserToolsExtension, canvasToolsExtension, modelRoutersExtension(agentDir), usageMetricsExtension],
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
         skillsOverride: applySkillsOverride as never,
       },

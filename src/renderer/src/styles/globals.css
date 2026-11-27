@@ -26,8 +26,8 @@
     --font-serif-base: 'Tiempos Text', 'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', Georgia, 'Noto Serif CJK SC', 'Noto Serif SC', 'Songti SC', STSong, serif;
     --font-display: var(--font-sans);
     --prose-font: inherit;
-    --chat-font-size: 14.5px;
-    --chat-line-height: 1.68;
+    --chat-font-size: 14px;
+    --chat-line-height: 1.66;
     --composer-max-height: 112px;
     --composer-font-size: 14px;
     --composer-line-height: 1.55;
@@ -94,11 +94,9 @@
     --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
 
     /* Main paper surface + Composer shell curves */
-    --main-chat-surface-radius: 16px;
-    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(18, 24, 40, 0.1);
-    --main-chat-surface-shadow:
-      -3px 0 8px -4px rgba(18, 24, 40, 0.14),
-      var(--main-chat-surface-shadow-top);
+    --main-chat-surface-radius: 0px;
+    --main-chat-surface-shadow-top: none;
+    --main-chat-surface-shadow: none;
     --composer-shell-radius: 14px;
     --composer-shell-border: color-mix(in srgb, var(--border-base) 70%, #a9aeb9);
     --composer-shell-border-hover: color-mix(in srgb, var(--border-base) 70%, #9aa0ab);
@@ -170,17 +168,18 @@
     --radius-lg: 0.625rem;
     --radius-xl: 0.75rem;
 
-    /* Surface elevation tiers (参考跨端客户端-inspired) */
+    /* Seamless L-shaped chrome (#F8F8F9) framing the pure white workspace (#FFFFFF) with zero hard grid lines */
     --surface-0: 0 0% 100%;
     --surface-1: 240 20% 98%;
     --surface-2: 240 4.8% 96%;
     --surface-3: 240 5.9% 92%;
-    --surface-sidebar: #F3F3F3;
-    /* Sidebar rows: borderless neutral fills (chat-app convention); selected is one clear step
-       darker than hover, so the two never read alike. */
-    --sidebar-row-hover: #ececef;
-    --sidebar-row-press: #e4e4e8;
-    --sidebar-row-selected: #dedfe6;
+    --surface-frame: #F8F8F9;
+    --surface-sidebar: #F8F8F9;
+    --shell-hairline: rgba(18, 20, 26, 0.055);
+    /* Sidebar rows: borderless neutral fills; selected is one clear quiet step above hover. */
+    --sidebar-row-hover: rgba(18, 20, 26, 0.042);
+    --sidebar-row-press: rgba(18, 20, 26, 0.072);
+    --sidebar-row-selected: rgba(18, 20, 26, 0.068);
     /* Selection elsewhere (file tree, lists on white panels): tonal fill. */
     --list-row-selected: #eceef2;
 
@@ -254,10 +253,8 @@
     --focus-border: #3794ff;
     --focus-shadow: 0 0 0 1px #3794ff55, 0 2px 12px rgba(0, 0, 0, 0.35);
 
-    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(0, 0, 0, 0.2);
-    --main-chat-surface-shadow:
-      -3px 0 8px -4px rgba(0, 0, 0, 0.28),
-      var(--main-chat-surface-shadow-top);
+    --main-chat-surface-shadow-top: none;
+    --main-chat-surface-shadow: none;
     --composer-shell-border: #3a3a3a;
     --composer-shell-border-hover: #48484c;
     --composer-shell-border-focus: color-mix(in srgb, var(--brand) 38%, #6a6a70);
@@ -309,11 +306,13 @@
     --surface-1: 0 0% 14%;
     --surface-2: 0 0% 17%;
     --surface-3: 0 0% 19%;
-    /* sideBar.background / activityBar.background */
-    --surface-sidebar: #181818;
-    --sidebar-row-hover: #212124;
-    --sidebar-row-press: #29292d;
-    --sidebar-row-selected: #313137;
+    /* Seamless dark chrome framing the elevated workspace without harsh grid lines */
+    --surface-frame: #161618;
+    --surface-sidebar: #161618;
+    --shell-hairline: rgba(255, 255, 255, 0.058);
+    --sidebar-row-hover: rgba(255, 255, 255, 0.045);
+    --sidebar-row-press: rgba(255, 255, 255, 0.078);
+    --sidebar-row-selected: rgba(255, 255, 255, 0.085);
     --list-row-selected: #2a2b2f;
 
     --text-secondary-hsl: 0 0% 67%;
@@ -480,6 +479,7 @@
   /* 左栏与对话区 grid 贴齐；主纸面左上角露出 center 的侧栏衬底 */
   .shell-track-left {
     box-shadow: none;
+    border-right: none;
   }
   .shell-track-center {
     position: relative;
@@ -488,9 +488,9 @@
     contain: layout;
     padding: 0;
     overflow: visible;
-    background: var(--surface-sidebar);
+    background: var(--surface-frame);
   }
-  /* 聊天列与右栏分界：画在 center 列右缘（grid 接缝），避免被卡片 overflow 吃掉 */
+  /* Only keep a whisper-thin 1px divider between center chat and an open right pane */
   .shell-track-center::after {
     content: '';
     position: absolute;
@@ -498,7 +498,7 @@
     right: 0;
     bottom: 0;
     width: 1px;
-    background: var(--border-base);
+    background: var(--shell-hairline);
     z-index: 90;
     pointer-events: none;
   }
@@ -506,18 +506,43 @@
     display: none;
   }
   .shell-track-center .main-chat-column {
-    /* Codex-like paper surface: cast onto sidebar/top chrome, keep right/bottom continuous */
     position: relative;
     z-index: 1;
-    border-radius: var(--main-chat-surface-radius) 0 0 0;
+    border-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px)) 0 0 0;
     background: var(--chat-bg);
     overflow: hidden;
     height: 100%;
-    box-shadow: var(--main-chat-surface-shadow);
+    box-shadow: none;
+  }
+  .shell-right-rail-only .shell-track-center .main-chat-column,
+  .shell-right-hidden-clean .shell-track-center .main-chat-column {
+    border-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px)) 0 0 0;
+  }
+  html[data-shell-corner-custom='on'] .shell-track-center .main-chat-column,
+  html[data-shell-corner-custom='on'] .settings-main {
+    border-top-left-radius: var(--shell-corner-radius, 12px) !important;
+  }
+  html[data-shell-corner-custom='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+  html[data-shell-corner-custom='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+    border-radius: var(--shell-corner-radius, 12px) !important;
+  }
+  html[data-shell-hairlines='hidden'] .shell-track-center::after,
+  html[data-shell-hairlines='hidden'] .shell-files-chat-preview .shell-track-right::before {
+    display: none !important;
+  }
+  html[data-shell-status-bar-compact='compact'] .workbench-statusbar {
+    height: 22px;
+    font-size: 11px;
+  }
+  .shell-right-rail-only .shell-track-center::after,
+  .shell-right-hidden-clean .shell-track-center::after {
+    display: none;
   }
   .shell-track-right {
     position: relative;
-    border-top: 1px solid var(--border-base);
+  }
+  .shell-track-right:not(.shell-track-right-rail) {
+    border-top: none;
   }
   /* 文件预览铺满聊天列时 center 宽为 0，改在右栏左缘画同一条线 */
   .shell-files-chat-preview .shell-track-right:not(.shell-track-collapsed)::before {
@@ -527,7 +552,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: var(--border-base);
+    background: var(--shell-hairline);
     z-index: 90;
     pointer-events: none;
   }
@@ -789,9 +814,12 @@
     background: transparent;
   }
   .panel-resize-edge--left {
-    flex-shrink: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
   }
-  /* 右栏：手柄中心落在 grid 接缝（= 主对话区 box-shadow 右缘） */
+  /* 右栏：手柄中心落在 grid 接缝（= 主对话区右缘） */
   .panel-resize-edge--right {
     position: absolute;
     left: -3px;
@@ -2605,15 +2633,16 @@
 .workbench-search .workbench-icon { width: 26px; min-height: 28px; margin-right: -6px; }
 .workbench-search.sidebar-search {
   min-height: 30px;
-  gap: 5px;
-  padding: 0 2px 0 8px;
-  border-color: transparent;
-  border-radius: 6px;
-  background: hsl(var(--foreground) / 0.045);
+  gap: 6px;
+  padding: 0 3px 0 9px;
+  border-color: hsl(var(--border) / 0.35);
+  border-radius: 8px;
+  background: hsl(var(--foreground) / 0.035);
   transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 .workbench-search.sidebar-search:hover {
-  background: hsl(var(--foreground) / 0.068);
+  background: hsl(var(--foreground) / 0.055);
+  border-color: hsl(var(--border) / 0.55);
 }
 .workbench-search.sidebar-search:focus-within {
   background: var(--bg-base);
@@ -2707,16 +2736,16 @@
 /* Sidebar section headers (对话 / 项目) and their single action share one look and one column. */
 .sidebar-section-head {
   display: flex;
-  min-height: 24px;
+  min-height: 22px;
   align-items: center;
   gap: 4px;
-  padding: 0 2px 2px;
+  padding: 0 2px 5px 8px;
 }
 .sidebar-section-title {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.015em;
-  color: hsl(var(--foreground) / 0.48);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: hsl(var(--foreground) / 0.45);
 }
 .sidebar-section-action {
   display: inline-flex;
@@ -2752,16 +2781,16 @@
 }
 .workbench-statusbar {
   display: flex;
-  height: 24px;
+  height: 22px;
   min-width: 0;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-top: 1px solid hsl(var(--border) / 0.55);
-  background: var(--surface-sidebar);
-  padding: 0 8px;
-  color: hsl(var(--muted-foreground));
+  border-top: none;
+  background: var(--surface-frame);
+  padding: 0 12px;
+  color: hsl(var(--muted-foreground) / 0.65);
   font-size: 11px;
 }
 .workbench-status-trigger {
@@ -3501,28 +3530,34 @@
   }
 }
 
-/* ── Settings visual system: card-grouped sections, nav indicator, page transitions ── */
-.settings-page-enter { animation: settings-page-in 260ms var(--motion-ease) both; }
-@keyframes settings-page-in { from { opacity: 0; transform: translateY(6px); } }
+/* ── Settings visual system: seamless L-frame + quiet rounded paper workspace ── */
+.settings-page-enter { animation: settings-page-in 240ms var(--motion-ease) both; }
+@keyframes settings-page-in { from { opacity: 0; transform: translateY(5px); } }
 .settings-section + .settings-section { margin-top: 2px; }
-/* Settings sit on a tinted page with solid cards: the page/card step gives the layout weight. */
-.settings-main { --settings-divider: color-mix(in srgb, var(--border-base) 80%, transparent); }
-:root:not(.dark) .settings-main { background: color-mix(in srgb, var(--bg-2) 55%, var(--bg-base)) !important; }
+.settings-main {
+  --settings-divider: var(--shell-hairline);
+  border-top-left-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px));
+  background: var(--bg-base);
+}
 .settings-card {
   overflow: hidden;
-  border: 1px solid var(--border-base);
+  border: 1px solid color-mix(in srgb, var(--border-base) 68%, transparent);
   border-radius: 12px;
-  background: var(--bg-base);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  background: color-mix(in srgb, var(--bg-1) 42%, var(--bg-base));
+  box-shadow: none;
 }
-.dark .settings-card { background: var(--bg-1); box-shadow: none; }
-.settings-card > * + * { border-top: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent); }
+.dark .settings-card {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--bg-1) 75%, var(--bg-base));
+  box-shadow: none;
+}
+.settings-card > * + * { border-top: 1px solid var(--shell-hairline); }
 .settings-card > .settings-row {
-  min-height: 60px;
-  padding: 13px 16px;
+  min-height: 54px;
+  padding: 12px 16px;
   transition: background-color var(--motion-fast) ease;
 }
-.settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 32%, transparent); }
+.settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 28%, transparent); }
 .settings-card > :not(.settings-row):not(.settings-flush) { padding: 14px 16px; }
 :where(.settings-card > .settings-flush) { padding: 0; }
 
@@ -3860,8 +3895,16 @@ html[data-bg-cover='frame'] .app-viewport {
   background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 62%), transparent) !important;
 }
 html[data-bg-cover='frame'] .app-viewport .electron-drag,
+html[data-bg-cover='frame'] [data-pi-slot='left-activity-rail'],
 html[data-bg-cover='frame'] .shell-track-left,
 html[data-bg-cover='frame'] .workbench-statusbar {
+  background: transparent !important;
+}
+html[data-bg-cover='frame'] [data-pi-slot='main-chat-header'],
+html[data-bg-cover='frame'] [data-pi-slot='right-dock-tabs'],
+html[data-bg-cover='frame'] [data-pi-slot='right-dock-launchpad'],
+html[data-bg-cover='frame'] [data-pi-slot='ai-canvas-panel'],
+html[data-bg-cover='frame'] [data-pi-slot='ai-canvas-tabs'] {
   background: transparent !important;
 }
 html[data-bg-cover='frame'] .shell-track-center .main-chat-column,
@@ -3881,10 +3924,18 @@ html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport {
   backdrop-filter: blur(var(--pane-blur)) saturate(1.65) brightness(1.03);
 }
 html[data-bg-cover='full'] .app-viewport .electron-drag,
+html[data-bg-cover='full'] [data-pi-slot='left-activity-rail'],
 html[data-bg-cover='full'] .shell-track-left,
 html[data-bg-cover='full'] .workbench-statusbar {
   background: transparent !important;
   backdrop-filter: none !important;
+}
+html[data-bg-cover='full'] [data-pi-slot='main-chat-header'],
+html[data-bg-cover='full'] [data-pi-slot='right-dock-tabs'],
+html[data-bg-cover='full'] [data-pi-slot='right-dock-launchpad'],
+html[data-bg-cover='full'] [data-pi-slot='ai-canvas-panel'],
+html[data-bg-cover='full'] [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
 }
 html[data-bg-cover='full'] .shell-track-center .main-chat-column,
 html[data-bg-cover='full'] .shell-track-right:not(.shell-track-right-rail),
@@ -4130,6 +4181,15 @@ html[data-accent-presence='vivid'] .shell-track-left .nav-row-active {
   background-color: color-mix(in srgb, var(--brand) 12%, transparent) !important;
   box-shadow: inset 2.5px 0 0 var(--brand);
 }
+html[data-accent-presence='balanced'] .left-rail-btn--active,
+html[data-accent-presence='vivid'] .left-rail-btn--active {
+  background-color: color-mix(in srgb, var(--brand) 14%, transparent) !important;
+  color: var(--brand) !important;
+}
+html[data-accent-presence='balanced'] .settings-nav-item[aria-current='page'],
+html[data-accent-presence='vivid'] .settings-nav-item[aria-current='page'] {
+  background-color: color-mix(in srgb, var(--brand) 11%, transparent) !important;
+}
 html[data-accent-presence='balanced'] .composer-toolbar-send:not(:disabled),
 html[data-accent-presence='vivid'] .composer-toolbar-send:not(:disabled) {
   background-color: var(--brand) !important;
@@ -4139,9 +4199,12 @@ html[data-accent-presence='balanced'] ::selection,
 html[data-accent-presence='vivid'] ::selection {
   background: color-mix(in srgb, var(--brand) 28%, transparent);
 }
-html[data-accent-presence='vivid'] [data-panel-tab][aria-selected='true'] {
+html[data-accent-presence='vivid'] [data-panel-tab][aria-selected='true'],
+html[data-accent-presence='vivid'] [data-panel-tab] [role='tab'][aria-selected='true'] {
   color: var(--brand) !important;
-  box-shadow: inset 0 -2px 0 var(--brand);
+}
+html[data-accent-presence='vivid'] [data-dock-tabstrip='top'] [data-panel-tab]:has([aria-selected='true']) {
+  background-color: color-mix(in srgb, var(--brand) 11%, transparent) !important;
 }
 html[data-accent-presence='vivid'] .timeline-user-bubble {
   border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
@@ -4153,6 +4216,8 @@ html[data-surface-material='bevel'] .composer-shell,
 html[data-surface-material='bevel'] .shell-popover,
 html[data-surface-material='bevel'] .overlay-panel,
 html[data-surface-material='bevel'] .settings-card,
+html[data-surface-material='bevel'] .launchpad-tile,
+html[data-surface-material='bevel'] .launchpad-search-input,
 html[data-surface-material='bevel'] .code-surface {
   box-shadow:
     0 6px 20px -8px rgba(0, 0, 0, 0.22),
@@ -4160,6 +4225,8 @@ html[data-surface-material='bevel'] .code-surface {
     inset 0 -1px 0 rgba(0, 0, 0, 0.16);
 }
 html:not(.dark)[data-surface-material='bevel'] .composer-shell,
+html:not(.dark)[data-surface-material='bevel'] .launchpad-tile,
+html:not(.dark)[data-surface-material='bevel'] .launchpad-search-input,
 html:not(.dark)[data-surface-material='bevel'] .settings-card {
   box-shadow:
     0 4px 14px -6px rgba(16, 24, 40, 0.08),
@@ -4171,6 +4238,9 @@ html:not(.dark)[data-surface-material='bevel'] .settings-card {
 html[data-surface-material='frosted'] .composer-shell,
 html[data-surface-material='frosted'] .shell-popover,
 html[data-surface-material='frosted'] .overlay-panel,
+html[data-surface-material='frosted'] .launchpad-search-input,
+html[data-surface-material='frosted'] .launchpad-tile,
+html[data-surface-material='frosted'] .left-rail-floating-pill,
 html[data-surface-material='frosted'] .live-theme-studio {
   background-clip: padding-box;
   background: color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
@@ -4213,14 +4283,18 @@ html:not(.dark)[data-surface-material='liquid-glass'] .live-theme-studio {
 }
 
 /* Cohesive Tier-2 Tactile Quartz family (zero backdrop-filter cost inside scrolling lists!) */
-html:not(.dark)[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active {
+html:not(.dark)[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active,
+html:not(.dark)[data-surface-material='liquid-glass'] .left-rail-btn--active,
+html:not(.dark)[data-surface-material='liquid-glass'] .launchpad-tile {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.62)) !important;
   border: 1px solid rgba(15, 23, 42, 0.065);
   box-shadow:
     0 2px 8px -2px rgba(15, 23, 42, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
 }
-html.dark[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active {
+html.dark[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active,
+html.dark[data-surface-material='liquid-glass'] .left-rail-btn--active,
+html.dark[data-surface-material='liquid-glass'] .launchpad-tile {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)) !important;
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow:
@@ -4340,16 +4414,26 @@ html[data-backdrop-preset]:not([data-bg='on']) .app-viewport {
   background: color-mix(in srgb, var(--surface-sidebar) 44%, transparent) !important;
 }
 html[data-backdrop-preset]:not([data-bg='on']) .app-viewport .electron-drag,
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='left-activity-rail'],
 html[data-backdrop-preset]:not([data-bg='on']) .shell-track-left,
 html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center,
 html[data-backdrop-preset]:not([data-bg='on']) .split-view,
 html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right-rail,
+html[data-backdrop-preset]:not([data-bg='on']) .settings-nav,
 html[data-backdrop-preset]:not([data-bg='on']) .workbench-statusbar {
   background: transparent !important;
   backdrop-filter: none !important;
   border-color: transparent !important;
 }
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='main-chat-header'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='right-dock-tabs'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='right-dock-launchpad'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='ai-canvas-panel'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
 html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center .main-chat-column,
+html[data-backdrop-preset]:not([data-bg='on']) .settings-main,
 html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
   background: color-mix(in srgb, var(--chat-bg) 86%, transparent) !important;
   backdrop-filter: none !important;
@@ -4386,6 +4470,28 @@ html.dark[data-backdrop-preset='ambient'] #pi-fx-backdrop {
     radial-gradient(ellipse 85% 70% at 55% 88%, rgba(44, 62, 102, 0.2), transparent 75%),
     linear-gradient(180deg, #0b0d11 0%, #0d0f14 55%, #101013 100%);
 }
+/* Aurora: wide northern-lights mineral mist calibrated for frosted & liquid glass */
+html:not(.dark)[data-backdrop-preset='aurora'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 72% 58% at 14% 18%, rgba(125, 196, 228, 0.28), transparent 72%),
+    radial-gradient(ellipse 68% 60% at 82% 24%, rgba(163, 214, 196, 0.24), transparent 72%),
+    radial-gradient(ellipse 75% 65% at 48% 92%, rgba(188, 194, 232, 0.22), transparent 74%),
+    linear-gradient(180deg, #eef3f8 0%, #f1f4f8 50%, #edf1f6 100%);
+}
+html.dark[data-backdrop-preset='aurora'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 72% 58% at 16% 18%, rgba(56, 132, 168, 0.28), transparent 72%),
+    radial-gradient(ellipse 68% 60% at 84% 26%, rgba(62, 146, 132, 0.22), transparent 72%),
+    radial-gradient(ellipse 78% 65% at 50% 94%, rgba(78, 86, 152, 0.22), transparent 74%),
+    linear-gradient(180deg, #0c1016 0%, #10151e 50%, #0d1118 100%);
+}
+/* Accent-adaptive mesh: follows the active theme's --brand hue automatically */
+html[data-backdrop-preset='mesh'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 68% 58% at 18% 22%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 74%),
+    radial-gradient(ellipse 64% 58% at 84% 78%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 76%),
+    linear-gradient(180deg, var(--surface-frame), var(--bg-1));
+}
 html[data-backdrop-preset='dots'] #pi-fx-backdrop {
   background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 18%, transparent) 1px, transparent 1px);
   background-size: 18px 18px;
@@ -4409,14 +4515,25 @@ html[data-win-material] .app-viewport {
   background: transparent !important;
 }
 html[data-win-material] .app-viewport .electron-drag,
+html[data-win-material] [data-pi-slot='left-activity-rail'],
 html[data-win-material] .shell-track-left,
 html[data-win-material] .shell-track-center,
 html[data-win-material] .split-view,
 html[data-win-material] .shell-track-right-rail,
+html[data-win-material] .settings-nav,
 html[data-win-material] .workbench-statusbar {
   background: transparent !important;
 }
-html[data-win-material] .shell-track-center .main-chat-column {
+html[data-win-material] [data-pi-slot='main-chat-header'],
+html[data-win-material] [data-pi-slot='right-dock-tabs'],
+html[data-win-material] [data-pi-slot='right-dock-launchpad'],
+html[data-win-material] [data-pi-slot='ai-canvas-panel'],
+html[data-win-material] [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
+html[data-win-material] .shell-track-center .main-chat-column,
+html[data-win-material] .settings-main,
+html[data-win-material] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
   background: color-mix(in srgb, var(--chat-bg) 88%, transparent) !important;
 }
 

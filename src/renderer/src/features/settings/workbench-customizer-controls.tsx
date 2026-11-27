@@ -35,6 +35,9 @@ import {
   MID_TURN_PROSE_STYLES,
   PI_CSS_RECIPES,
   PI_UI_SLOTS,
+  SHELL_ACTIVITY_RAIL_STYLES,
+  SHELL_CANVAS_HEADER_MODES,
+  SHELL_RIGHT_TAB_STYLES,
   type ComposerAccessoryMode,
   type ComposerBranchMode,
   type ComposerContextPosition,
@@ -48,6 +51,9 @@ import {
   type ComposerWorktreeMode,
   type MidTurnProseStyle,
   type PiSlotCategory,
+  type ShellActivityRailStyle,
+  type ShellCanvasHeaderMode,
+  type ShellRightTabStyle,
   type UiCustomization,
 } from '@shared/ui-customization'
 
@@ -781,6 +787,390 @@ export function WorkbenchComposerControls({
   )
 }
 
+function ToggleCard({
+  label,
+  description,
+  checked,
+  onCheckedChange,
+  slot,
+  compact = false,
+  disabled = false,
+}: {
+  label: string
+  description?: string
+  checked: boolean
+  onCheckedChange: (next: boolean) => void
+  slot?: string | null
+  compact?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <div
+      onMouseEnter={() => {
+        if (slot) highlightPiSlot(slot)
+      }}
+      onMouseLeave={() => {
+        if (slot) highlightPiSlot(null)
+      }}
+      className={cn(
+        'flex items-center justify-between gap-3 rounded-lg border border-border/65 bg-background/60 px-3 py-2 transition-colors hover:border-border/90',
+        disabled && 'opacity-50',
+      )}
+    >
+      <div className="min-w-0">
+        <div className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+          {label}
+        </div>
+        {!compact && description ? (
+          <div className="mt-0.5 text-[11px] leading-snug text-foreground-secondary/80">{description}</div>
+        ) : null}
+      </div>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
+  )
+}
+
+export const SHELL_LAYOUT_PRESETS: ReadonlyArray<{
+  id: 'standard' | 'focus' | 'zen'
+  patch: Partial<UiCustomization>
+}> = [
+  {
+    id: 'standard',
+    patch: {
+      shellActivityRailVisible: true,
+      shellActivityRailStyle: 'default',
+      shellTopBarCompact: false,
+      shellChatHeaderVisible: true,
+      shellChatHeaderShowTitle: true,
+      shellChatHeaderShowBranch: true,
+      shellChatHeaderShowDiff: true,
+      shellSidebarShowBrand: true,
+      shellSidebarShowNewChat: true,
+      shellRightTabStyle: 'codex',
+      shellLaunchpadShowSearch: true,
+      shellLaunchpadCompact: false,
+      shellCanvasHeaderMode: 'always',
+      shellStatusBarVisible: true,
+      shellStatusBarCompact: false,
+      shellCornerRadius: 12,
+      shellShowHairlines: true,
+    },
+  },
+  {
+    id: 'focus',
+    patch: {
+      shellActivityRailVisible: false,
+      shellTopBarCompact: true,
+      shellChatHeaderVisible: true,
+      shellChatHeaderShowTitle: true,
+      shellChatHeaderShowBranch: false,
+      shellChatHeaderShowDiff: false,
+      shellSidebarShowBrand: true,
+      shellSidebarShowNewChat: true,
+      shellRightTabStyle: 'minimal',
+      shellLaunchpadShowSearch: true,
+      shellLaunchpadCompact: true,
+      shellCanvasHeaderMode: 'multi-only',
+      shellStatusBarVisible: false,
+      shellCornerRadius: 10,
+      shellShowHairlines: true,
+    },
+  },
+  {
+    id: 'zen',
+    patch: {
+      shellActivityRailVisible: false,
+      shellTopBarCompact: true,
+      shellChatHeaderVisible: false,
+      shellSidebarShowBrand: false,
+      shellSidebarShowNewChat: false,
+      shellRightTabStyle: 'minimal',
+      shellLaunchpadShowSearch: false,
+      shellLaunchpadCompact: true,
+      shellCanvasHeaderMode: 'hidden',
+      shellStatusBarVisible: false,
+      shellCornerRadius: 0,
+      shellShowHairlines: false,
+    },
+  },
+]
+
+export function isShellPresetActive(
+  ui: UiCustomization,
+  patch: Partial<UiCustomization>,
+): boolean {
+  return (Object.keys(patch) as Array<keyof UiCustomization>).every((k) => ui[k] === patch[k])
+}
+
+export function WorkbenchShellControls({
+  ui,
+  onUiChange,
+  compact = false,
+}: {
+  ui: UiCustomization
+  onUiChange: (patch: Partial<UiCustomization>) => void
+  compact?: boolean
+}) {
+  const { t } = useTranslation()
+
+  useEffect(() => () => highlightPiSlot(null), [])
+
+  const sectionTitleCls = cn(
+    'font-medium text-foreground-secondary/85',
+    compact ? 'text-[11px]' : 'text-[12px]',
+  )
+
+  return (
+    <div className={cn('flex flex-col', compact ? 'gap-3.5' : 'gap-5')}>
+      {/* 1. One-click Workbench Shell Presets */}
+      <div className="flex flex-col gap-1.5">
+        <div className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[13px]')}>
+          {t('settings:appearance.workbench.shellPresetsTitle')}
+        </div>
+        <div className={cn('grid gap-2', compact ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-3')}>
+          {SHELL_LAYOUT_PRESETS.map((preset) => {
+            const active = isShellPresetActive(ui, preset.patch)
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onUiChange(preset.patch)}
+                className={cn(
+                  'flex flex-col items-start rounded-lg border p-2.5 text-left transition-all',
+                  active
+                    ? 'border-[var(--brand)] bg-[var(--brand)]/10 text-foreground'
+                    : 'border-border/75 bg-background/60 text-muted-foreground hover:border-border hover:text-foreground',
+                )}
+              >
+                <span className="text-[12px] font-medium text-foreground">
+                  {t(`settings:appearance.workbench.shellPresets.${preset.id}`)}
+                </span>
+                {!compact ? (
+                  <span className="mt-0.5 text-[11px] leading-snug text-foreground-secondary/80">
+                    {t(`settings:appearance.workbench.shellPresets.${preset.id}Hint`)}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 2. Left Activity Rail & Frame Chrome */}
+      <div className="flex flex-col gap-2">
+        <div className={sectionTitleCls}>{t('settings:appearance.workbench.shellGroupChrome')}</div>
+        <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+          <ToggleCard
+            compact={compact}
+            slot="left-activity-rail"
+            label={t('settings:appearance.workbench.shellActivityRailVisible')}
+            description={t('settings:appearance.workbench.shellActivityRailVisibleDesc')}
+            checked={ui.shellActivityRailVisible}
+            onCheckedChange={(shellActivityRailVisible) => onUiChange({ shellActivityRailVisible })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="shell-top-bar"
+            label={t('settings:appearance.workbench.shellTopBarCompact')}
+            description={t('settings:appearance.workbench.shellTopBarCompactDesc')}
+            checked={ui.shellTopBarCompact}
+            onCheckedChange={(shellTopBarCompact) => onUiChange({ shellTopBarCompact })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="shell-status-bar"
+            label={t('settings:appearance.workbench.shellStatusBarVisible')}
+            description={t('settings:appearance.workbench.shellStatusBarVisibleDesc')}
+            checked={ui.shellStatusBarVisible}
+            onCheckedChange={(shellStatusBarVisible) => onUiChange({ shellStatusBarVisible })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="shell-status-bar"
+            label={t('settings:appearance.workbench.shellStatusBarCompact')}
+            description={t('settings:appearance.workbench.shellStatusBarCompactDesc')}
+            checked={ui.shellStatusBarCompact}
+            disabled={!ui.shellStatusBarVisible}
+            onCheckedChange={(shellStatusBarCompact) => onUiChange({ shellStatusBarCompact })}
+          />
+        </div>
+
+        {ui.shellActivityRailVisible ? (
+          <div
+            onMouseEnter={() => highlightPiSlot('left-activity-rail')}
+            onMouseLeave={() => highlightPiSlot(null)}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/65 bg-background/60 px-3 py-2"
+          >
+            <span className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+              {t('settings:appearance.workbench.shellActivityRailStyleLabel')}
+            </span>
+            <SegmentedPills
+              compact
+              value={ui.shellActivityRailStyle}
+              onChange={(shellActivityRailStyle: ShellActivityRailStyle) =>
+                onUiChange({ shellActivityRailStyle })
+              }
+              options={SHELL_ACTIVITY_RAIL_STYLES.map((st) => ({
+                id: st,
+                label: t(`settings:appearance.workbench.shellActivityRailStyles.${st}`),
+              }))}
+            />
+          </div>
+        ) : null}
+
+        <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+          <label className="flex flex-col justify-center gap-1.5 rounded-lg border border-border/65 bg-[var(--bg-1)]/35 px-3 py-2">
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="font-medium text-foreground">
+                {t('settings:appearance.workbench.shellCornerRadius')}
+              </span>
+              <span className="font-mono text-[11.5px] text-foreground-secondary">{ui.shellCornerRadius}px</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={20}
+              step={2}
+              value={ui.shellCornerRadius}
+              onDoubleClick={() => onUiChange({ shellCornerRadius: DEFAULT_UI_CUSTOMIZATION.shellCornerRadius })}
+              onChange={(e) => onUiChange({ shellCornerRadius: Number(e.target.value) })}
+              className="w-full accent-[var(--brand)]"
+            />
+          </label>
+          <ToggleCard
+            compact={compact}
+            label={t('settings:appearance.workbench.shellShowHairlines')}
+            description={t('settings:appearance.workbench.shellShowHairlinesDesc')}
+            checked={ui.shellShowHairlines}
+            onCheckedChange={(shellShowHairlines) => onUiChange({ shellShowHairlines })}
+          />
+        </div>
+      </div>
+
+      {/* 3. Main Chat Header & Sidebar Elements */}
+      <div className="flex flex-col gap-2">
+        <div className={sectionTitleCls}>{t('settings:appearance.workbench.shellGroupHeaderSidebar')}</div>
+        <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+          <ToggleCard
+            compact={compact}
+            slot="main-chat-header"
+            label={t('settings:appearance.workbench.shellChatHeaderVisible')}
+            description={t('settings:appearance.workbench.shellChatHeaderVisibleDesc')}
+            checked={ui.shellChatHeaderVisible}
+            onCheckedChange={(shellChatHeaderVisible) => onUiChange({ shellChatHeaderVisible })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="chat-header-title"
+            label={t('settings:appearance.workbench.shellChatHeaderShowTitle')}
+            checked={ui.shellChatHeaderShowTitle}
+            disabled={!ui.shellChatHeaderVisible}
+            onCheckedChange={(shellChatHeaderShowTitle) => onUiChange({ shellChatHeaderShowTitle })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="chat-header-branch"
+            label={t('settings:appearance.workbench.shellChatHeaderShowBranch')}
+            checked={ui.shellChatHeaderShowBranch}
+            disabled={!ui.shellChatHeaderVisible}
+            onCheckedChange={(shellChatHeaderShowBranch) => onUiChange({ shellChatHeaderShowBranch })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="header-diff-toggle"
+            label={t('settings:appearance.workbench.shellChatHeaderShowDiff')}
+            checked={ui.shellChatHeaderShowDiff}
+            disabled={!ui.shellChatHeaderVisible}
+            onCheckedChange={(shellChatHeaderShowDiff) => onUiChange({ shellChatHeaderShowDiff })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="sidebar-header"
+            label={t('settings:appearance.workbench.shellSidebarShowBrand')}
+            description={t('settings:appearance.workbench.shellSidebarShowBrandDesc')}
+            checked={ui.shellSidebarShowBrand}
+            onCheckedChange={(shellSidebarShowBrand) => onUiChange({ shellSidebarShowBrand })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="sidebar-new-chat"
+            label={t('settings:appearance.workbench.shellSidebarShowNewChat')}
+            checked={ui.shellSidebarShowNewChat}
+            onCheckedChange={(shellSidebarShowNewChat) => onUiChange({ shellSidebarShowNewChat })}
+          />
+        </div>
+      </div>
+
+      {/* 4. Right Dock, New Tab Launchpad & AI Canvas */}
+      <div className="flex flex-col gap-2">
+        <div className={sectionTitleCls}>{t('settings:appearance.workbench.shellGroupRightPanels')}</div>
+        <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+          <div
+            onMouseEnter={() => highlightPiSlot('right-dock-tabs')}
+            onMouseLeave={() => highlightPiSlot(null)}
+            className="flex flex-col justify-center gap-1.5 rounded-lg border border-border/65 bg-background/60 px-3 py-2"
+          >
+            <span className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+              {t('settings:appearance.workbench.shellRightTabStyleLabel')}
+            </span>
+            <SegmentedPills
+              compact
+              value={ui.shellRightTabStyle}
+              onChange={(shellRightTabStyle: ShellRightTabStyle) => onUiChange({ shellRightTabStyle })}
+              options={SHELL_RIGHT_TAB_STYLES.map((st) => ({
+                id: st,
+                label: t(`settings:appearance.workbench.shellRightTabStyles.${st}`),
+              }))}
+            />
+          </div>
+          <div
+            onMouseEnter={() => highlightPiSlot('ai-canvas-tabs')}
+            onMouseLeave={() => highlightPiSlot(null)}
+            className="flex flex-col justify-center gap-1.5 rounded-lg border border-border/65 bg-background/60 px-3 py-2"
+          >
+            <span className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+              {t('settings:appearance.workbench.shellCanvasHeaderLabel')}
+            </span>
+            <SegmentedPills
+              compact
+              value={ui.shellCanvasHeaderMode}
+              onChange={(shellCanvasHeaderMode: ShellCanvasHeaderMode) =>
+                onUiChange({ shellCanvasHeaderMode })
+              }
+              options={SHELL_CANVAS_HEADER_MODES.map((m) => ({
+                id: m,
+                label: t(`settings:appearance.workbench.shellCanvasHeaderModes.${m}`),
+              }))}
+            />
+          </div>
+          <ToggleCard
+            compact={compact}
+            slot="right-dock-launchpad"
+            label={t('settings:appearance.workbench.shellLaunchpadShowSearch')}
+            description={t('settings:appearance.workbench.shellLaunchpadShowSearchDesc')}
+            checked={ui.shellLaunchpadShowSearch}
+            onCheckedChange={(shellLaunchpadShowSearch) => onUiChange({ shellLaunchpadShowSearch })}
+          />
+          <ToggleCard
+            compact={compact}
+            slot="right-dock-launchpad"
+            label={t('settings:appearance.workbench.shellLaunchpadCompact')}
+            description={t('settings:appearance.workbench.shellLaunchpadCompactDesc')}
+            checked={ui.shellLaunchpadCompact}
+            onCheckedChange={(shellLaunchpadCompact) => onUiChange({ shellLaunchpadCompact })}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function WorkbenchCssInspectorControls({
   customCss,
   onCustomCssChange,
@@ -926,7 +1316,7 @@ export function WorkbenchCssInspectorControls({
             compact
             value={activeCat}
             onChange={(cat) => setActiveCat(cat)}
-            options={(['composer', 'timeline', 'shell'] as const).map((cat) => ({
+            options={(['shell', 'panels', 'composer', 'timeline'] as const).map((cat) => ({
               id: cat,
               label: t(`settings:appearance.workbench.slotCategories.${cat}`),
             }))}

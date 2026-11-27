@@ -7,11 +7,13 @@ const SettingsSectionSearchContext = createContext(false)
 
 /** Section titles can match every row in that section. */
 export function SettingsSection({
+  id,
   title,
   description,
   action,
   children,
 }: {
+  id?: string
   title: string
   description?: string
   action?: ReactNode
@@ -21,11 +23,11 @@ export function SettingsSection({
   const sectionMatches = !!query && `${title} ${description || ''}`.toLocaleLowerCase().includes(query)
   return (
     <SettingsSectionSearchContext.Provider value={sectionMatches}>
-    <section className="settings-section">
-      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-3 px-1">
+    <section id={id} className="settings-section scroll-mt-6">
+      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-3 px-0.5">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{title}</h3>
-          {description && <p className="mt-0.5 max-w-2xl text-[12.5px] leading-[1.6] text-foreground-secondary">{description}</p>}
+          <h3 className="text-[13px] font-semibold leading-5 tracking-[-0.01em] text-foreground">{title}</h3>
+          {description && <p className="mt-0.5 max-w-2xl text-[12px] leading-[1.55] text-foreground-secondary/85">{description}</p>}
         </div>
         {action}
       </div>

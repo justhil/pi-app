@@ -22,6 +22,7 @@ import {
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { setBrowserToolsEnabled } from './worker-browser-tools.js'
+import { setCanvasToolsEnabled } from './worker-canvas-tools.js'
 
 const SECTION_PREFIX = 'desktop_'
 const PURGE_SECTION_KEY = 'agent_purge'
@@ -215,5 +216,6 @@ export async function handleSetCapabilities(msg: WorkerIncomingMessage, reply: W
   setActiveSessionPurge((msg as { purge?: unknown }).purge)
   const tools = Array.isArray(msg.tools) ? msg.tools : []
   setBrowserToolsEnabled(tools.includes('browser'))
+  setCanvasToolsEnabled(tools.includes('canvas'))
   reply({ ok: true, count: Object.keys(sections).length, purged: !!activePurge })
 }

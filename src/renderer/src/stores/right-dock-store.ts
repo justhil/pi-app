@@ -5,62 +5,86 @@ import { useUIStore } from './ui-store'
 export type DockSlot = 'top' | 'bottom'
 
 export interface RightDockState {
+  openTabIds: string[]
   bottomTabIds: string[]
   topActive: string
   bottomActive: string | null
+  launchpadOpen: boolean
   splitRatio: number
   workspaceMemory: Record<string, { topActive: string; bottomActive: string | null }>
 
+  setLaunchpadOpen: (open: boolean) => void
   setSplitRatio: (ratio: number) => void
   resetSplitRatio: () => void
-  activateInSlot: (slot: DockSlot, panelId: string, enabledIds: readonly string[]) => void
-  activatePanelSmart: (panelId: string, enabledIds?: readonly string[]) => DockSlot
+  activateInSlot: (slot: DockSlot, panelId: string, openIds: readonly string[]) => void
+  activatePanelSmart: (panelId: string, availableIds?: readonly string[]) => DockSlot
+  openTab: (panelId: string, opts?: { slot?: DockSlot; focus?: boolean }) => DockSlot
+  closeTab: (panelId: string) => void
+  closeOtherTabs: (keepPanelId: string) => void
+  closeAllTabs: () => void
   movePanel: (
     panelId: string,
     targetSlot: DockSlot,
-    enabledIds: readonly string[],
+    openIds: readonly string[],
     targetIndex?: number,
   ) => void
-  splitToBottom: (enabledIds: readonly string[], preferredBottomId?: string) => void
+  splitToBottom: (openIds: readonly string[], preferredBottomId?: string) => void
   mergeToSingle: () => void
-  swapPanes: (enabledIds: readonly string[]) => void
-  reconcile: (enabledIds: readonly string[], fallbackTop: string) => void
+  swapPanes: (openIds: readonly string[]) => void
+  reconcile: (availableIds: readonly string[], fallbackTop: string) => void
   rememberWorkspace: (workspaceKey: string | null, topActive: string, bottomActive: string | null) => void
-  restoreWorkspace: (workspaceKey: string | null, enabledIds: readonly string[]) => void
+  restoreWorkspace: (workspaceKey: string | null, availableIds: readonly string[]) => void
 }
 
 export function computeDockSlots(
-  enabledIds: readonly string[],
+  openIds: readonly string[],
   bottomTabIds: readonly string[],
 ): { topIds: string[]; bottomIds: string[] } {
-  if (enabledIds.length <= 1) {
-    return { topIds: [...enabledIds], bottomIds: [] }
+  if (openIds.length <= 1) {
+    return { topIds: [...openIds], bottomIds: [] }
   }
-  const enabledSet = new Set(enabledIds)
-  const validBottom = bottomTabIds.filter((id) => enabledSet.has(id))
-  if (validBottom.length >= enabledIds.length) {
-    const keepTop = enabledIds[0]
+  const openSet = new Set(openIds)
+  const validBottom = bottomTabIds.filter((id) => openSet.has(id))
+  if (validBottom.length >= openIds.length) {
+    const keepTop = openIds[0]
     return {
       topIds: [keepTop],
       bottomIds: validBottom.filter((id) => id !== keepTop),
     }
   }
   const bottomSet = new Set(validBottom)
-  const topIds = enabledIds.filter((id) => !bottomSet.has(id))
+  const topIds = openIds.filter((id) => !bottomSet.has(id))
   return { topIds, bottomIds: validBottom }
 }
 
+export function resolveOpenTabIds(
+  availableIds: readonly string[],
+  openTabIds: readonly string[],
+  fallbackPanel?: string | null,
+  allowFallbackWhenEmpty = false,
+): string[] {
+  const availableSet = new Set(availableIds)
+  const out: string[] = []
+  for (const id of openTabIds) {
+    if (availableSet.has(id) && !out.includes(id)) out.push(id)
+  }
+  if (out.length === 0 && allowFallbackWhenEmpty && fallbackPanel && availableSet.has(fallbackPanel)) {
+    return [fallbackPanel]
+  }
+  return out
+}
+
 export function resolveVisibleDockPanels(
-  enabledIds: readonly string[],
+  openIds: readonly string[],
   activePanel: string,
   dock: Pick<RightDockState, 'bottomTabIds' | 'topActive' | 'bottomActive'>,
 ): { topIds: string[]; bottomIds: string[]; topActive: string; bottomActive: string | null } {
-  const { topIds, bottomIds } = computeDockSlots(enabledIds, dock.bottomTabIds)
+  const { topIds, bottomIds } = computeDockSlots(openIds, dock.bottomTabIds)
   const topActive = topIds.includes(activePanel)
     ? activePanel
     : topIds.includes(dock.topActive)
       ? dock.topActive
-      : (topIds[0] ?? activePanel)
+      : (topIds[0] ?? '')
   const bottomActive =
     bottomIds.length > 0
       ? dock.bottomActive && bottomIds.includes(dock.bottomActive)
@@ -70,69 +94,207 @@ export function resolveVisibleDockPanels(
   return { topIds, bottomIds, topActive, bottomActive }
 }
 
+export function getAllAvailableRightPanelIdsFromStore(): string[] {
+  const ui = useUIStore.getState()
+  const catalogIds = ui.rightPanelCatalog.map((c) => c.id)
+  if (!ui.rightPanelOrder.length) return catalogIds
+  const known = new Set(catalogIds)
+  const ordered = ui.rightPanelOrder.filter((id) => known.has(id))
+  for (const id of catalogIds) {
+    if (!ordered.includes(id)) ordered.push(id)
+  }
+  return ordered
+}
+
 export function getEnabledRightPanelIdsFromStore(): string[] {
   const ui = useUIStore.getState()
-  const baseOrder = ui.rightPanelOrder.length
-    ? ui.rightPanelOrder
-    : ui.rightPanelCatalog.map((c) => c.id)
+  const baseOrder = getAllAvailableRightPanelIdsFromStore()
   return baseOrder.filter((id) => ui.rightPanelPrefs[id])
+}
+
+export function getOpenRightPanelIdsFromStore(): string[] {
+  const dock = useRightDockStore.getState()
+  const availableIds = getAllAvailableRightPanelIdsFromStore()
+  return resolveOpenTabIds(availableIds, dock.openTabIds)
 }
 
 export function isPanelVisibleInRightDock(panelId: string): boolean {
   const ui = useUIStore.getState()
   const dock = useRightDockStore.getState()
-  const enabledIds = getEnabledRightPanelIdsFromStore()
-  const { topActive, bottomActive } = resolveVisibleDockPanels(enabledIds, ui.activePanel, dock)
+  if (dock.launchpadOpen) return false
+  const openIds = getOpenRightPanelIdsFromStore()
+  if (openIds.length === 0) return false
+  const { topActive, bottomActive } = resolveVisibleDockPanels(openIds, ui.activePanel, dock)
   return topActive === panelId || bottomActive === panelId
+}
+
+function collapseRightPanelCleanly(): void {
+  useUIStore.setState({
+    rightPanelCollapsed: true,
+    rightPanelExpandedOnNarrow: false,
+    browserChatExpand: false,
+    filesPreviewChatExpand: false,
+  })
 }
 
 export const useRightDockStore = create<RightDockState>()(
   persist(
     (set, get) => ({
+      openTabIds: [],
       bottomTabIds: [],
-      topActive: 'files',
+      topActive: '',
       bottomActive: null,
+      launchpadOpen: false,
       splitRatio: 0.5,
       workspaceMemory: {},
 
-      setSplitRatio: (ratio) =>
-        set({ splitRatio: Math.max(0.22, Math.min(0.78, ratio)) }),
+      setLaunchpadOpen: (open) => set({ launchpadOpen: open }),
+
+      setSplitRatio: (ratio) => set({ splitRatio: Math.max(0.22, Math.min(0.78, ratio)) }),
 
       resetSplitRatio: () => set({ splitRatio: 0.5 }),
 
-      activateInSlot: (slot, panelId, enabledIds) => {
-        const { topIds, bottomIds } = computeDockSlots(enabledIds, get().bottomTabIds)
+      activateInSlot: (slot, panelId, openIds) => {
+        const { topIds, bottomIds } = computeDockSlots(openIds, get().bottomTabIds)
         if (slot === 'top' && topIds.includes(panelId)) {
-          set({ topActive: panelId })
+          set({ topActive: panelId, launchpadOpen: false })
           useUIStore.getState().setActivePanel(panelId)
         } else if (slot === 'bottom' && bottomIds.includes(panelId)) {
-          set({ bottomActive: panelId })
+          set({ bottomActive: panelId, launchpadOpen: false })
         }
       },
 
-      activatePanelSmart: (panelId, providedEnabled) => {
+      openTab: (panelId, opts) => {
         const ui = useUIStore.getState()
-        if (!ui.rightPanelPrefs[panelId]) {
-          useUIStore.setState((s) => ({
-            rightPanelPrefs: { ...s.rightPanelPrefs, [panelId]: true },
-          }))
-        }
-        const enabledIds = providedEnabled ?? getEnabledRightPanelIdsFromStore()
-        const withTarget = enabledIds.includes(panelId) ? enabledIds : [...enabledIds, panelId]
-        const { bottomIds } = computeDockSlots(withTarget, get().bottomTabIds)
-        if (bottomIds.includes(panelId)) {
-          set({ bottomActive: panelId })
+        const cur = get()
+        const alreadyOpen = cur.openTabIds.includes(panelId)
+        const nextOpen = alreadyOpen ? cur.openTabIds : [...cur.openTabIds, panelId]
+
+        if (opts?.slot === 'bottom' && nextOpen.length > 1) {
+          const nextBottom = cur.bottomTabIds.includes(panelId)
+            ? cur.bottomTabIds
+            : [...cur.bottomTabIds, panelId]
+          const { topIds } = computeDockSlots(nextOpen, nextBottom)
+          const nextTopActive =
+            cur.topActive && topIds.includes(cur.topActive) ? cur.topActive : (topIds[0] ?? panelId)
+          set({
+            openTabIds: nextOpen,
+            bottomTabIds: nextBottom,
+            topActive: nextTopActive,
+            bottomActive: panelId,
+            launchpadOpen: false,
+          })
           return 'bottom'
         }
-        set({ topActive: panelId })
-        ui.setActivePanel(panelId)
+
+        const { bottomIds } = computeDockSlots(nextOpen, cur.bottomTabIds)
+        if (bottomIds.includes(panelId)) {
+          set({ openTabIds: nextOpen, bottomActive: panelId, launchpadOpen: false })
+          return 'bottom'
+        }
+        set({ openTabIds: nextOpen, topActive: panelId, launchpadOpen: false })
+        if (opts?.focus !== false) {
+          if (!ui.rightPanelPrefs[panelId]) {
+            // Keep activePanel aligned even for on-demand panels not pinned in Settings prefs.
+            useUIStore.setState({ activePanel: panelId })
+          } else {
+            ui.setActivePanel(panelId)
+          }
+        }
         return 'top'
       },
 
-      movePanel: (panelId, targetSlot, enabledIds, targetIndex) => {
-        if (enabledIds.length <= 1) return
+      activatePanelSmart: (panelId, _availableIds) => {
+        return get().openTab(panelId, { focus: true })
+      },
+
+      closeTab: (panelId) => {
         const cur = get()
-        const { topIds, bottomIds } = computeDockSlots(enabledIds, cur.bottomTabIds)
+        const ui = useUIStore.getState()
+        const effectiveOpen =
+          cur.openTabIds.length > 0
+            ? cur.openTabIds
+            : ui.activePanel
+              ? [ui.activePanel]
+              : []
+        const idx = effectiveOpen.indexOf(panelId)
+        if (idx < 0) return
+
+        const nextOpen = effectiveOpen.filter((id) => id !== panelId)
+        if ((panelId === 'browser' || panelId === 'canvas') && ui.browserChatExpand) {
+          useUIStore.setState({ browserChatExpand: false })
+        }
+        if (panelId === 'files' && ui.filesPreviewChatExpand) {
+          useUIStore.setState({ filesPreviewChatExpand: false })
+        }
+
+        if (nextOpen.length === 0) {
+          set({
+            openTabIds: [],
+            bottomTabIds: [],
+            topActive: '',
+            bottomActive: null,
+            launchpadOpen: false,
+          })
+          collapseRightPanelCleanly()
+          return
+        }
+
+        const rawNextBottom = cur.bottomTabIds.filter((id) => id !== panelId)
+        const { topIds, bottomIds } = computeDockSlots(nextOpen, rawNextBottom)
+
+        const pickNeighbor = (list: string[], previousActive: string | null) => {
+          if (previousActive && list.includes(previousActive)) return previousActive
+          return list[Math.min(idx, list.length - 1)] ?? list[0] ?? ''
+        }
+
+        const nextTopActive = pickNeighbor(topIds, cur.topActive === panelId ? null : cur.topActive)
+        const nextBottomActive =
+          bottomIds.length === 0
+            ? null
+            : cur.bottomActive && cur.bottomActive !== panelId && bottomIds.includes(cur.bottomActive)
+              ? cur.bottomActive
+              : bottomIds[0]
+
+        set({
+          openTabIds: nextOpen,
+          bottomTabIds: bottomIds,
+          topActive: nextTopActive,
+          bottomActive: nextBottomActive,
+        })
+        if (nextTopActive) {
+          useUIStore.setState({ activePanel: nextTopActive })
+        }
+      },
+
+      closeOtherTabs: (keepPanelId) => {
+        const cur = get()
+        if (!cur.openTabIds.includes(keepPanelId)) return
+        set({
+          openTabIds: [keepPanelId],
+          bottomTabIds: [],
+          topActive: keepPanelId,
+          bottomActive: null,
+          launchpadOpen: false,
+        })
+        useUIStore.setState({ activePanel: keepPanelId })
+      },
+
+      closeAllTabs: () => {
+        set({
+          openTabIds: [],
+          bottomTabIds: [],
+          topActive: '',
+          bottomActive: null,
+          launchpadOpen: false,
+        })
+        collapseRightPanelCleanly()
+      },
+
+      movePanel: (panelId, targetSlot, openIds, targetIndex) => {
+        if (openIds.length <= 1) return
+        const cur = get()
+        const { topIds, bottomIds } = computeDockSlots(openIds, cur.bottomTabIds)
 
         if (targetSlot === 'bottom') {
           if (topIds.length <= 1 && topIds[0] === panelId) return
@@ -142,7 +304,7 @@ export const useRightDockStore = create<RightDockState>()(
               ? nextBottom.length
               : Math.max(0, Math.min(nextBottom.length, targetIndex))
           nextBottom.splice(insertAt, 0, panelId)
-          const nextTop = enabledIds.filter((id) => !nextBottom.includes(id))
+          const nextTop = openIds.filter((id) => !nextBottom.includes(id))
           const uiActive = useUIStore.getState().activePanel
           const nextTopActive =
             uiActive !== panelId && nextTop.includes(uiActive)
@@ -151,11 +313,12 @@ export const useRightDockStore = create<RightDockState>()(
                 ? cur.topActive
                 : (nextTop[0] ?? panelId)
           set({
+            openTabIds: [...nextTop, ...nextBottom],
             bottomTabIds: nextBottom,
             topActive: nextTopActive,
             bottomActive: panelId,
           })
-          useUIStore.getState().setActivePanel(nextTopActive)
+          useUIStore.setState({ activePanel: nextTopActive })
           return
         }
 
@@ -167,13 +330,6 @@ export const useRightDockStore = create<RightDockState>()(
             : Math.max(0, Math.min(nextTop.length, targetIndex))
         nextTop.splice(insertAt, 0, panelId)
 
-        const fullOrder = [
-          ...nextTop,
-          ...nextBottom,
-          ...useUIStore.getState().rightPanelOrder.filter((id) => !nextTop.includes(id) && !nextBottom.includes(id)),
-        ]
-        useUIStore.setState({ rightPanelOrder: fullOrder })
-
         const nextBottomActive =
           nextBottom.length === 0
             ? null
@@ -181,21 +337,22 @@ export const useRightDockStore = create<RightDockState>()(
               ? cur.bottomActive
               : nextBottom[0]
         set({
+          openTabIds: [...nextTop, ...nextBottom],
           bottomTabIds: nextBottom,
           topActive: panelId,
           bottomActive: nextBottomActive,
         })
-        useUIStore.getState().setActivePanel(panelId)
+        useUIStore.setState({ activePanel: panelId })
       },
 
-      splitToBottom: (enabledIds, preferredBottomId) => {
-        if (enabledIds.length <= 1) return
+      splitToBottom: (openIds, preferredBottomId) => {
+        if (openIds.length <= 1) return
         const uiActive = useUIStore.getState().activePanel
-        const currentTop = enabledIds.includes(uiActive) ? uiActive : enabledIds[0]
+        const currentTop = openIds.includes(uiActive) ? uiActive : openIds[0]
         const candidate =
-          preferredBottomId && enabledIds.includes(preferredBottomId) && preferredBottomId !== currentTop
+          preferredBottomId && openIds.includes(preferredBottomId) && preferredBottomId !== currentTop
             ? preferredBottomId
-            : (enabledIds.find((id) => id !== currentTop) ?? enabledIds[enabledIds.length - 1])
+            : (openIds.find((id) => id !== currentTop) ?? openIds[openIds.length - 1])
         if (!candidate || candidate === currentTop) return
         set({
           bottomTabIds: [candidate],
@@ -206,21 +363,18 @@ export const useRightDockStore = create<RightDockState>()(
 
       mergeToSingle: () => set({ bottomTabIds: [], bottomActive: null }),
 
-      swapPanes: (enabledIds) => {
+      swapPanes: (openIds) => {
         const cur = get()
-        const { topIds, bottomIds } = computeDockSlots(enabledIds, cur.bottomTabIds)
+        const { topIds, bottomIds } = computeDockSlots(openIds, cur.bottomTabIds)
         if (bottomIds.length === 0 || topIds.length === 0) return
         const uiActive = useUIStore.getState().activePanel
         const prevTopActive = topIds.includes(uiActive) ? uiActive : topIds[0]
         const prevBottomActive =
           cur.bottomActive && bottomIds.includes(cur.bottomActive) ? cur.bottomActive : bottomIds[0]
-        const fullOrder = [
-          ...bottomIds,
-          ...topIds,
-          ...useUIStore.getState().rightPanelOrder.filter((id) => !topIds.includes(id) && !bottomIds.includes(id)),
-        ]
-        useUIStore.setState({ rightPanelOrder: fullOrder, activePanel: prevBottomActive })
+        const nextOrder = [...bottomIds, ...topIds]
+        useUIStore.setState({ activePanel: prevBottomActive })
         set({
+          openTabIds: cur.openTabIds.length > 0 ? nextOrder : cur.openTabIds,
           bottomTabIds: topIds,
           topActive: prevBottomActive,
           bottomActive: prevTopActive,
@@ -228,14 +382,18 @@ export const useRightDockStore = create<RightDockState>()(
         })
       },
 
-      reconcile: (enabledIds, fallbackTop) => {
+      reconcile: (availableIds, fallbackTop) => {
         const cur = get()
-        const { topIds, bottomIds } = computeDockSlots(enabledIds, cur.bottomTabIds)
-        const nextTop = topIds.includes(fallbackTop)
-          ? fallbackTop
-          : topIds.includes(cur.topActive)
-            ? cur.topActive
-            : (topIds[0] ?? fallbackTop)
+        const validOpen = resolveOpenTabIds(availableIds, cur.openTabIds)
+        const { topIds, bottomIds } = computeDockSlots(validOpen, cur.bottomTabIds)
+        const nextTop =
+          topIds.length === 0
+            ? ''
+            : topIds.includes(fallbackTop)
+              ? fallbackTop
+              : topIds.includes(cur.topActive)
+                ? cur.topActive
+                : topIds[0]
         const nextBottom =
           bottomIds.length === 0
             ? null
@@ -243,11 +401,13 @@ export const useRightDockStore = create<RightDockState>()(
               ? cur.bottomActive
               : bottomIds[0]
         if (
+          validOpen.join(',') !== cur.openTabIds.join(',') ||
           bottomIds.join(',') !== cur.bottomTabIds.join(',') ||
           nextTop !== cur.topActive ||
           nextBottom !== cur.bottomActive
         ) {
           set({
+            openTabIds: validOpen,
             bottomTabIds: bottomIds,
             topActive: nextTop,
             bottomActive: nextBottom,
@@ -256,7 +416,7 @@ export const useRightDockStore = create<RightDockState>()(
       },
 
       rememberWorkspace: (workspaceKey, topActive, bottomActive) => {
-        if (!workspaceKey) return
+        if (!workspaceKey || !topActive) return
         set((s) => ({
           workspaceMemory: {
             ...s.workspaceMemory,
@@ -265,12 +425,13 @@ export const useRightDockStore = create<RightDockState>()(
         }))
       },
 
-      restoreWorkspace: (workspaceKey, enabledIds) => {
+      restoreWorkspace: (workspaceKey, availableIds) => {
         if (!workspaceKey) return
         const cur = get()
         const remembered = cur.workspaceMemory[workspaceKey]
-        if (!remembered) return
-        const { topIds, bottomIds } = computeDockSlots(enabledIds, cur.bottomTabIds)
+        if (!remembered || cur.openTabIds.length === 0) return
+        const validOpen = resolveOpenTabIds(availableIds, cur.openTabIds)
+        const { topIds, bottomIds } = computeDockSlots(validOpen, cur.bottomTabIds)
         const nextTop = topIds.includes(remembered.topActive) ? remembered.topActive : cur.topActive
         const nextBottom =
           bottomIds.length > 0 && remembered.bottomActive && bottomIds.includes(remembered.bottomActive)
@@ -278,13 +439,14 @@ export const useRightDockStore = create<RightDockState>()(
             : cur.bottomActive
         if (nextTop !== cur.topActive || nextBottom !== cur.bottomActive) {
           set({ topActive: nextTop, bottomActive: nextBottom })
-          if (topIds.includes(nextTop)) useUIStore.getState().setActivePanel(nextTop)
+          if (nextTop && topIds.includes(nextTop)) useUIStore.setState({ activePanel: nextTop })
         }
       },
     }),
     {
-      name: 'pi-right-dock-v1',
+      name: 'pi-right-dock-v2',
       partialize: (s) => ({
+        openTabIds: s.openTabIds,
         bottomTabIds: s.bottomTabIds,
         topActive: s.topActive,
         bottomActive: s.bottomActive,

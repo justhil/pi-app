@@ -69,6 +69,7 @@ describe('repository / checkout / session sidebar', () => {
   it('keeps one scope switch inside the search frame and returns focus after clearing', async () => {
     const { container } = sidebar()
     await screen.findByText('/copies/feature question')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     const input = screen.getByRole('searchbox')
     fireEvent.focus(input)
     const scope = screen.getByRole('switch', { name: 'All projects' })
@@ -92,6 +93,7 @@ describe('repository / checkout / session sidebar', () => {
   it('searches other known checkouts only in all-project search and opens the right directory', async () => {
     const { container } = sidebar()
     await screen.findByText('/copies/feature question')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.focus(screen.getByRole('searchbox'))
     fireEvent.click(screen.getByRole('switch', { name: 'All projects' }))
     expect(mocks.invoke.mock.calls.filter(([method]) => method === 'session.list')).toHaveLength(1)
@@ -118,6 +120,7 @@ describe('repository / checkout / session sidebar', () => {
     const { container } = sidebar()
     await screen.findByText('Build sidebar')
     expectCollapsedChild('Review findings')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'needle' } })
     expect(screen.getByText('Build sidebar')).toBeInTheDocument()
     expect(screen.getByText('Review findings')).toBeInTheDocument()

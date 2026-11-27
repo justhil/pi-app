@@ -170,14 +170,70 @@
     "timelineUserMessageBubble": "Right bubble",
     "timelineUserMessagePromptCard": "Left prompt card",
     "workbench": {
-      "openLiveStudio": "Open Live Customize Studio",
+      "openLiveStudio": "Live Customize",
       "openLiveStudioDesc": "Return to the chat view to drag, toggle, and tune over real messages",
       "dragWindowHint": "Drag header to reposition studio",
       "tabs": {
-        "workbench": "Workbench",
+        "shell": "Shell & Panels",
+        "workbench": "Chat & Input",
         "theme": "Theme & FX",
         "css": "Custom CSS"
       },
+      "shellSectionTitle": "Workbench Shell & Panels",
+      "shellSectionDesc": "Show or hide the far-left activity rail, top chat header, sidebar brand, new-tab Launchpad, AI Canvas bar, and bottom status bar.",
+      "shellPresetsTitle": "Quick shell layouts",
+      "shellPresets": {
+        "standard": "Standard",
+        "standardHint": "Full 4-column workbench with activity rail, header, and status bar",
+        "focus": "Focus",
+        "focusHint": "Hides activity rail & status bar; keeps a clean minimal header",
+        "zen": "Zen Canvas",
+        "zenHint": "Hides chrome & hairlines for maximum canvas space"
+      },
+      "shellGroupChrome": "Activity rail, top bar & status bar",
+      "shellGroupHeaderSidebar": "Chat header & left sidebar",
+      "shellGroupRightPanels": "Right tabs, Launchpad & AI Canvas",
+      "shellActivityRailVisible": "Show far-left activity rail",
+      "shellActivityRailVisibleDesc": "When hidden, Settings, Reload, and Notifications move cleanly into the top-right window bar.",
+      "shellActivityRailStyleLabel": "Activity rail style",
+      "shellActivityRailStyles": {
+        "default": "Standard (48px)",
+        "compact": "Compact (40px)",
+        "floating": "Floating pill"
+      },
+      "shellTopBarCompact": "Compact window bar",
+      "shellTopBarCompactDesc": "Slims the top window bar from 36px to 30px.",
+      "shellStatusBarVisible": "Show bottom status bar",
+      "shellStatusBarVisibleDesc": "Hide the bottom status and memory bar to reclaim vertical space.",
+      "shellStatusBarCompact": "Compact status bar",
+      "shellStatusBarCompactDesc": "Uses a slimmer bottom status strip.",
+      "shellCornerRadius": "Workspace corner radius",
+      "shellShowHairlines": "Show 1px pane hairlines",
+      "shellShowHairlinesDesc": "Subtle hairline divider between center chat and open right panels.",
+      "shellChatHeaderVisible": "Show main chat header",
+      "shellChatHeaderVisibleDesc": "Hides the entire 48px header row above the timeline.",
+      "shellChatHeaderShowTitle": "Show session title",
+      "shellChatHeaderShowBranch": "Show Git branch",
+      "shellChatHeaderShowDiff": "Show diff stat (+N -M)",
+      "shellSidebarShowBrand": "Show sidebar 'pi' brand row",
+      "shellSidebarShowBrandDesc": "Removes the top brand row and tucks Search neatly below.",
+      "shellSidebarShowNewChat": "Show sidebar 'New chat' action",
+      "shellRightTabStyleLabel": "Right dock tab style",
+      "shellRightTabStyles": {
+        "codex": "Soft pill",
+        "minimal": "Minimal text",
+        "underline": "Underline"
+      },
+      "shellCanvasHeaderLabel": "AI Canvas inner switcher bar",
+      "shellCanvasHeaderModes": {
+        "always": "Always show",
+        "multi-only": "Multi-surface only",
+        "hidden": "Hidden (hover menu)"
+      },
+      "shellLaunchpadShowSearch": "Show centered Launchpad search / URL bar",
+      "shellLaunchpadShowSearchDesc": "Turn off to show only the quick-open panel tiles.",
+      "shellLaunchpadCompact": "Compact Launchpad tiles",
+      "shellLaunchpadCompactDesc": "Uses compact horizontal cards on the New Tab Launchpad.",
       "midProseTitle": "Mid-turn step text style",
       "midProseDesc": "How transitional notes between tool runs appear (matches body prose by default).",
       "midProse": {
@@ -248,17 +304,36 @@
       "cssRecipesTitle": "One-click CSS recipes",
       "cssSlotsTitle": "Stable [data-pi-slot] selectors (hover to spotlight, click to insert)",
       "slotCategories": {
+        "shell": "Shell & Chrome",
+        "panels": "Right & Canvas",
         "composer": "Composer",
-        "timeline": "Timeline",
-        "shell": "Shell"
+        "timeline": "Timeline"
       },
       "recipes": {
         "hoverToolbar": "Fade secondary toolbar items when unfocused",
         "pillSend": "Circular send & voice buttons",
         "wideCode": "Crisp elevated code block border",
-        "editorialHeadings": "Subtle bottom divider under H2 headings"
+        "editorialHeadings": "Subtle bottom divider under H2 headings",
+        "glassActivityRail": "Accent capsule on active activity-rail icons",
+        "borderlessMinimal": "Zero-radius borderless flat workspace",
+        "floatingChatHeader": "Frosted floating main chat header",
+        "compactLaunchpad": "Higher-gravity compact Launchpad"
       },
       "slots": {
+        "shellTopBar": "Top window bar",
+        "leftActivityRail": "Far-left activity rail",
+        "sidebarHeader": "Sidebar brand & search row",
+        "shellSidebar": "Left project sidebar",
+        "mainChatHeader": "Main chat header bar",
+        "chatHeaderTitle": "Header session title",
+        "chatHeaderBranch": "Header Git branch badge",
+        "headerDiffToggle": "Header diff stat pill",
+        "shellStatusBar": "Bottom global status bar",
+        "shellRightPanel": "Right workbench container",
+        "rightDockTabs": "Right dock tab strip",
+        "rightDockLaunchpad": "Right dock New Tab Launchpad",
+        "aiCanvasPanel": "AI Canvas main panel",
+        "aiCanvasTabs": "AI Canvas inner tab bar",
         "composerDock": "Floating composer dock",
         "composerAccessory": "Top accessory bar (Todo/Activity)",
         "composerShell": "Composer main shell",
@@ -281,9 +356,6 @@
         "timelineThinking": "Thinking chain block",
         "timelineToolGroup": "Tool group summary",
         "timelineCodeBlock": "Markdown code block",
-        "shellSidebar": "Left project sidebar",
-        "shellRightPanel": "Right workbench panel",
-        "shellStatusBar": "Bottom global status bar",
         "composerContextStrip": "Context strip container",
         "composerWorktreeBtn": "Worktree switcher button",
         "composerBranchBtn": "Git branch switcher"
@@ -322,7 +394,19 @@
     "timelineToolAutoExpandMax": "Max auto-expanded tools",
     "timelineToolAutoExpandMaxDesc": "Tools expanded at once while running, 0 keeps them collapsed.",
     "title": "Appearance",
-    "description": "Theme, fonts and density.",
+    "description": "Themes, shell chrome, optical materials, and layout.",
+    "jump": {
+      "label": "Jump to section",
+      "base": "Basics",
+      "shell": "Shell & Panels",
+      "themes": "Theme & FX",
+      "background": "Wallpaper",
+      "composer": "Composer",
+      "timeline": "Timeline"
+    },
+    "livePreviewTitle": "Live workbench preview",
+    "livePreviewPrompt": "Tune workbench theme & corners",
+    "livePreviewReply": "Frame tone, optical glass & syntax synced",
     "density": "Density",
     "zoom": "UI zoom",
     "zoomDesc": "Text size and spacing for this window only.",
@@ -419,7 +503,10 @@
       "rosePine": "Rosé Pine",
       "tokyoNight": "Tokyo Night",
       "vscodePlus": "VS Code Light+",
-      "codexDark": "Codex Dark"
+      "codexDark": "Codex Dark",
+      "codexLight": "Codex Light",
+      "nord": "Nord",
+      "catppuccin": "Catppuccin"
     },
     "groupLayout": "Layout, flow & code syntax",
     "groupMaterials": "Optical materials & procedural backdrop",
@@ -483,6 +570,8 @@
     "backdropOptions": {
       "none": "None",
       "ambient": "Ambient glow",
+      "aurora": "Aurora mist",
+      "mesh": "Accent mesh",
       "dots": "Dot matrix",
       "grid": "Drafting grid",
       "grain": "Film / paper grain"
@@ -526,6 +615,7 @@
     "colorUserBubble": "Your messages",
     "colorCode": "Code blocks",
     "colorBorder": "Borders",
+    "colorFrame": "Outer frame & rail",
     "fontDisplay": "Heading font",
     "fontDisplayDesc": "Used for headings in replies; Serif uses the system's serif fonts.",
     "fontDisplayUi": "Same as UI",
@@ -543,7 +633,10 @@
     "varInsert": "Insert into the CSS",
     "varSurface": "window background",
     "varChat": "chat area",
+    "varFrame": "outer frame & activity rail",
     "varSidebar": "sidebar",
+    "varHairline": "pane hairline divider",
+    "varShellCorner": "workspace corner radius",
     "varUserBubble": "your messages",
     "varCode": "code blocks",
     "varText": "text",
@@ -1270,12 +1363,14 @@
     }
   },
   "rightPanels": {
-    "description": "Drag to reorder or hide right-panel tabs; the main window updates after Save.",
+    "description": "Drag to reorder or hide right-panel tabs including AI Canvas and Browser; updates after Save.",
+    "behaviorSection": "Collapse & behavior",
+    "listSection": "Registered panels",
     "refreshCatalog": "Refresh catalog",
     "keepOne": "Keep at least one panel",
     "enabledCount": "{{enabled}} / {{total}} panels enabled · drag to sort",
-    "railIcons": "Keep panel icons when collapsed",
-    "railIconsDesc": "Shows a column of panel icons at the window edge while the right panel is collapsed. Applies at once."
+    "railIcons": "Keep slim right edge icon rail when collapsed",
+    "railIconsDesc": "Off by default for a clean Codex-style canvas (collapses to 0px); turn on to show a minimal edge icon rail while collapsed. Applies at once."
   },
   "common_confirm": {
     "confirm": "OK",

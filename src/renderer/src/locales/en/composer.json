@@ -215,6 +215,11 @@
         "desc": "Answers with charts, KPI cards, tables and other blocks",
         "short": "Visuals"
       },
+      "canvas": {
+        "name": "AI Canvas",
+        "desc": "Project device streams, delegation graphs, components or prototypes onto the right Canvas via canvas_* tools",
+        "short": "Canvas"
+      },
       "browser": {
         "name": "Browser control",
         "desc": "Reads and operates pages in the built-in browser",

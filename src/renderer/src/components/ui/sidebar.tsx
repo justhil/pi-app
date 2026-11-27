@@ -25,7 +25,7 @@ export function SidebarContent({ children }: { children: React.ReactNode }) {
   return (
     <OverlayScrollHost
       className="sidebar-scroll-host min-h-0 flex-1"
-      scrollClassName="py-1"
+      scrollClassName="pb-2"
       showRailOnHostHover
     >
       {children}

@@ -40,6 +40,24 @@ export function applyUiCustomizationToDocument(raw: UiCustomization | unknown): 
   setOrRemoveDataAttr(root, 'data-composer-worktree', cfg.composerWorktreeMode, d.composerWorktreeMode)
   setOrRemoveDataAttr(root, 'data-composer-branch', cfg.composerBranchMode, d.composerBranchMode)
 
+  setOrRemoveDataAttr(root, 'data-shell-activity-rail', cfg.shellActivityRailVisible ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-activity-rail-style', cfg.shellActivityRailStyle, d.shellActivityRailStyle)
+  setOrRemoveDataAttr(root, 'data-shell-topbar-compact', cfg.shellTopBarCompact ? 'compact' : 'default', 'default')
+  setOrRemoveDataAttr(root, 'data-shell-chat-header', cfg.shellChatHeaderVisible ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-chat-header-title', cfg.shellChatHeaderShowTitle ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-chat-header-branch', cfg.shellChatHeaderShowBranch ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-chat-header-diff', cfg.shellChatHeaderShowDiff ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-sidebar-brand', cfg.shellSidebarShowBrand ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-sidebar-new-chat', cfg.shellSidebarShowNewChat ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-right-tab-style', cfg.shellRightTabStyle, d.shellRightTabStyle)
+  setOrRemoveDataAttr(root, 'data-shell-launchpad-search', cfg.shellLaunchpadShowSearch ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-launchpad-compact', cfg.shellLaunchpadCompact ? 'compact' : 'default', 'default')
+  setOrRemoveDataAttr(root, 'data-shell-canvas-header', cfg.shellCanvasHeaderMode, d.shellCanvasHeaderMode)
+  setOrRemoveDataAttr(root, 'data-shell-status-bar', cfg.shellStatusBarVisible ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-status-bar-compact', cfg.shellStatusBarCompact ? 'compact' : 'default', 'default')
+  setOrRemoveDataAttr(root, 'data-shell-hairlines', cfg.shellShowHairlines ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-shell-corner-custom', cfg.shellCornerRadius !== d.shellCornerRadius ? 'on' : 'off', 'off')
+
   if (!document.head) return
   const colVarLines =
     cfg.chatColumnMax === 0
@@ -51,11 +69,19 @@ export function applyUiCustomizationToDocument(raw: UiCustomization | unknown): 
       : `  --chat-content-cap: ${cfg.chatColumnMax}px;
   --composer-content-cap: ${cfg.chatColumnMax}px;`
 
+  const shellVarLines = [
+    `  --shell-corner-radius: ${cfg.shellCornerRadius}px;`,
+    !cfg.shellShowHairlines ? '  --shell-hairline: transparent;' : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   const cssText = `:root {
   --chat-font-size: ${cfg.chatFontSize}px;
   --chat-line-height: ${cfg.chatLineHeight};
   --composer-max-height: ${cfg.composerMaxHeight}px;
 ${colVarLines}
+${shellVarLines}
 }`
 
   const existing = document.getElementById(UI_CUSTOMIZATION_STYLE_ID)

@@ -6,7 +6,7 @@ interface PanelIntentState {
   focusedPrNumber: number | null
   openWorktreeCreateSignal: number
   openGitHubPr: (prNumber: number | null) => void
-  toggleRightPanelTab: (panelId: 'worktrees' | 'github' | 'browser', isRightPanelOpen: boolean) => void
+  toggleRightPanelTab: (panelId: 'canvas' | 'worktrees' | 'github' | 'browser' | string, isRightPanelOpen: boolean) => void
   openWorktreesPanel: (opts?: { expandCreate?: boolean }) => void
   consumeFocusedPr: () => void
 }

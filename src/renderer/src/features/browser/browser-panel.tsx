@@ -153,6 +153,7 @@ export function BrowserPanel() {
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelCollapsed = useRightPanelHidden()
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
+  const dockOpenTabs = useRightDockStore((s) => s.openTabIds)
   const dockBottomTabs = useRightDockStore((s) => s.bottomTabIds)
   const dockTopActive = useRightDockStore((s) => s.topActive)
   const dockBottomActive = useRightDockStore((s) => s.bottomActive)
@@ -162,6 +163,7 @@ export function BrowserPanel() {
   const activeTab = activeTabId ? tabs[activeTabId] : undefined
   const pageShown = !!activeTab && activeTab.url !== 'about:blank' && !activeTab.sleeping
   void activePanel
+  void dockOpenTabs
   void dockBottomTabs
   void dockTopActive
   void dockBottomActive
@@ -532,14 +534,15 @@ export function BrowserPanel() {
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-background" onKeyDown={onRootKeyDown}>
-      {/* Row 1: Compact Browser Tab Bar inside RightDock pane */}
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 bg-[var(--surface-sidebar)]/55 px-1.5">
-        <div
-          ref={tabStripRef}
-          className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
-          role="tablist"
-          aria-label={t('nav.tabs')}
-        >
+      {/* Show inner browser tab strip only when multiple web tabs are open (avoids double tab bars). */}
+      {order.length > 1 ? (
+        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border/25 bg-[var(--bg-base)] px-2">
+          <div
+            ref={tabStripRef}
+            className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+            role="tablist"
+            aria-label={t('nav.tabs')}
+          >
           {order.map((id) => {
             const tab = tabs[id]
             if (!tab) return null
@@ -570,9 +573,9 @@ export function BrowserPanel() {
                 data-browser-tab={id}
                 data-pinned={pinned ? 'true' : undefined}
                 className={cn(
-                  'group flex h-7 min-w-[72px] max-w-[186px] flex-1 basis-[148px] items-center gap-1.5 rounded-md pl-2 pr-1 text-[11.5px] transition-colors',
+                  'group flex h-6 min-w-[72px] max-w-[186px] flex-1 basis-[140px] items-center gap-1.5 rounded-md pl-2 pr-1 text-[11.5px] transition-colors',
                   active
-                    ? 'bg-background font-medium text-foreground shadow-xs'
+                    ? 'bg-background font-medium text-foreground shadow-[0_0_0_0.5px_hsl(var(--border)/0.75)]'
                     : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
                   tab.sleeping && 'opacity-60',
                 )}
@@ -651,11 +654,11 @@ export function BrowserPanel() {
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
-
       </div>
+      ) : null}
 
-      {/* Row 2: Modern Omnibox + AI Awareness + Design Mode Annotate + Send + Downloads + Cookie Sync */}
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border/45 px-2">
+      {/* Slim Omnibox + Page Actions */}
+      <div className="flex h-9 shrink-0 items-center gap-1 bg-[var(--bg-base)] px-2.5">
         <button
           type="button"
           className={navButton}
@@ -736,7 +739,7 @@ export function BrowserPanel() {
                 e.currentTarget.blur()
               }
             }}
-            className="h-7 w-full rounded-lg border border-transparent bg-[var(--bg-hover)] pl-6 pr-16 text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary focus:border-ring focus:bg-background"
+            className="h-[26px] w-full rounded-lg border border-transparent bg-[var(--bg-2)]/75 pl-6 pr-16 text-[12px] text-foreground outline-none transition-colors placeholder:text-foreground-tertiary hover:bg-[var(--bg-hover)] focus:border-ring/70 focus:bg-background"
           />
 
           {pageShown && !editing ? (
@@ -843,6 +846,18 @@ export function BrowserPanel() {
             </div>
           ) : null}
         </div>
+
+        {order.length <= 1 ? (
+          <button
+            type="button"
+            className={navButton}
+            title={`${t('nav.newTab')} (${modKeyLabel}T)`}
+            aria-label={t('nav.newTab')}
+            onClick={() => void openTab()}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
 
         <button
           type="button"

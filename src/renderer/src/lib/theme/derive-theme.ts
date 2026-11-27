@@ -139,6 +139,10 @@ export function deriveThemeVariables(variant: ThemeVariant): ThemeVar[] {
   const borderBase = over.border ?? toInk(0.11)
   // 侧栏在明暗两侧都比主面暗一档，故朝黑混而非朝 ink 混
   const sidebar = over.sidebar ?? mixColors(surface, '#000000', 0.045)
+  const frameBase = over.frame ?? sidebar
+  const shellHairline = over.border
+    ? withAlpha(over.border, 0.52)
+    : withAlpha(ink, isDarkSurface(surface) ? 0.09 : 0.075)
   const textSecondary = mixColors(ink, surface, 0.38 - 0.1 * (k - 1))
   const textDisabled = mixColors(ink, surface, 0.72 - 0.1 * (k - 1))
 
@@ -158,6 +162,8 @@ export function deriveThemeVariables(variant: ThemeVariant): ThemeVar[] {
     hex('--bg-active', bgActive),
     hex('--message-user-bg', messageUserBg),
     hex('--surface-sidebar', variant.translucentSidebar ? withAlpha(sidebar, SIDEBAR_ALPHA) : sidebar),
+    hex('--surface-frame', variant.translucentSidebar ? withAlpha(frameBase, SIDEBAR_ALPHA) : frameBase),
+    hex('--shell-hairline', shellHairline),
 
     hex('--text-primary', ink),
     hex('--text-secondary', textSecondary),

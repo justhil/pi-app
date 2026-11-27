@@ -6,6 +6,7 @@ import {
   GitBranch,
   GitFork,
   Globe,
+  Layers,
   ListTree,
   Network,
   PanelRight,
@@ -23,6 +24,7 @@ const CORE_PANEL_ICONS: Record<string, AppIconComponent> = {
   context: FileSearch,
   tree: ListTree,
   files: FolderTree,
+  canvas: Layers,
   worktrees: FolderGit2,
   github: GitFork,
   browser: Globe,
@@ -35,6 +37,41 @@ export function resolveRightPanelIconName(name?: string): AppIconName {
 
 function resolveIcon(name?: string): AppIconComponent {
   return (name && CORE_PANEL_ICONS[name]) || resolveAppIcon(resolveRightPanelIconName(name)) || PanelRight
+}
+
+export function buildAllRightPanelTabs(
+  catalog: RightPanelCatalogItem[],
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+  order?: string[],
+  excludeIds?: readonly string[],
+) {
+  const byId = new Map(catalog.map((c) => [c.id, c]))
+  const excluded = excludeIds?.length ? new Set(excludeIds) : null
+  const seq: RightPanelCatalogItem[] = []
+  const seen = new Set<string>()
+  if (order?.length) {
+    for (const id of order) {
+      const item = byId.get(id)
+      if (item && !seen.has(id)) {
+        seen.add(id)
+        seq.push(item)
+      }
+    }
+  }
+  for (const item of catalog) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id)
+      seq.push(item)
+    }
+  }
+  return seq
+    .filter((item) => !excluded?.has(item.id))
+    .map((item) => ({
+      key: item.id,
+      label: item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel,
+      icon: resolveIcon(item.icon || item.id),
+      catalogItem: item,
+    }))
 }
 
 export function buildRightPanelTabs(

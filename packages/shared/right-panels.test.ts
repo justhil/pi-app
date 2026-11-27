@@ -11,9 +11,13 @@ describe('defaultCoreRightPanelPrefs', () => {
     const prefs = defaultCoreRightPanelPrefs()
     expect(prefs.files).toBe(true)
     expect(prefs.run).toBe(true)
+    expect(prefs.canvas).toBe(true)
+    expect(prefs.browser).toBe(true)
     expect(prefs.review).toBe(false)
     expect(prefs.context).toBe(false)
     expect(prefs.tree).toBe(false)
+    expect(prefs.worktrees).toBe(false)
+    expect(prefs.github).toBe(false)
   })
 })
 
@@ -29,7 +33,7 @@ describe('CORE_RIGHT_PANEL_CATALOG tree icon', () => {
 describe('normalizeRightPanelPrefs', () => {
   it('falls back to files+run when all panels disabled', () => {
     const prefs = normalizeRightPanelPrefs(
-      { review: false, run: false, context: false, tree: false, files: false, browser: false, worktrees: false, github: false },
+      { review: false, run: false, context: false, tree: false, files: false, canvas: false, browser: false, worktrees: false, github: false },
       CORE_RIGHT_PANEL_CATALOG,
     )
     expect(prefs.files).toBe(true)

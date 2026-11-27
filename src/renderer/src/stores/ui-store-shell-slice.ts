@@ -84,12 +84,6 @@ type ShellSlice = Pick<
   | 'setBrowserStageMode'
   | 'setBrowserStageRatio'
   | 'toggleBrowserStage'
-  | 'browserStageMode'
-  | 'browserStageRatio'
-  | 'browserStageLastOpenMode'
-  | 'setBrowserStageMode'
-  | 'setBrowserStageRatio'
-  | 'toggleBrowserStage'
 >
 
 export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
@@ -97,19 +91,22 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     activePanel: 'review',
     rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],
     setActivePanel: (panel) =>
-      set((state) => ({
-        activePanel: state.rightPanelPrefs[panel]
-          ? panel
-          : coerceActivePanel(
-              panel,
-              state.rightPanelPrefs,
-              state.rightPanelCatalog,
-              state.rightPanelOrder,
-            ),
-        ...(panel !== 'browser' && state.browserStageMode !== 'closed'
-          ? { browserStageMode: 'closed' as const, browserChatExpand: false }
-          : {}),
-      })),
+      set((state) => {
+        const known = state.rightPanelCatalog.some((c) => c.id === panel)
+        return {
+          activePanel: known
+            ? panel
+            : coerceActivePanel(
+                panel,
+                state.rightPanelPrefs,
+                state.rightPanelCatalog,
+                state.rightPanelOrder,
+              ),
+          ...(panel !== 'browser' && panel !== 'canvas' && state.browserStageMode !== 'closed'
+            ? { browserStageMode: 'closed' as const, browserChatExpand: false }
+            : {}),
+        }
+      }),
     rightPanelPrefs: defaultCoreRightPanelPrefs(),
     rightPanelOrder: [],
     applyRightPanelRuntime: (catalog, prefs, order) =>
@@ -238,8 +235,8 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       })
       return true
     },
-    // A fresh install starts with the conversation alone; the top bar button opens the panel.
-    rightPanelCollapsed: true,
+    // Default to right pane open (showing Codex-style New Tab Launchpad when empty) and edge icon rail off.
+    rightPanelCollapsed: false,
     rightPanelRailIcons: false,
     setRightPanelRailIcons: (on) => set({ rightPanelRailIcons: on }),
     rightPanelExpandedOnNarrow: false,

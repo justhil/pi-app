@@ -46,6 +46,15 @@ export const COMPOSER_TOOLBAR_ITEMS = [
 ] as const
 export type ComposerToolbarItemId = (typeof COMPOSER_TOOLBAR_ITEMS)[number]
 
+export const SHELL_ACTIVITY_RAIL_STYLES = ['default', 'compact', 'floating'] as const
+export type ShellActivityRailStyle = (typeof SHELL_ACTIVITY_RAIL_STYLES)[number]
+
+export const SHELL_RIGHT_TAB_STYLES = ['codex', 'minimal', 'underline'] as const
+export type ShellRightTabStyle = (typeof SHELL_RIGHT_TAB_STYLES)[number]
+
+export const SHELL_CANVAS_HEADER_MODES = ['always', 'multi-only', 'hidden'] as const
+export type ShellCanvasHeaderMode = (typeof SHELL_CANVAS_HEADER_MODES)[number]
+
 export interface UiCustomization {
   /** Mid-turn transitional prose style between tool runs. */
   midTurnProseStyle: MidTurnProseStyle
@@ -87,6 +96,42 @@ export interface UiCustomization {
   composerWorktreeMode: ComposerWorktreeMode
   /** Display mode of the Git branch & PR badge area. */
   composerBranchMode: ComposerBranchMode
+
+  /* ---- Workbench Shell & Panels ---- */
+  /** Show the far-left 48px activity rail (when hidden, settings/refresh/inbox relocate cleanly to top chrome). */
+  shellActivityRailVisible: boolean
+  /** Visual width & presentation of the far-left activity rail. */
+  shellActivityRailStyle: ShellActivityRailStyle
+  /** Slimmer top window frame height (30px instead of 36px). */
+  shellTopBarCompact: boolean
+  /** Show the 48px main chat header above the conversation timeline. */
+  shellChatHeaderVisible: boolean
+  /** Show active session title inside the main chat header. */
+  shellChatHeaderShowTitle: boolean
+  /** Show git branch tag inside the main chat header. */
+  shellChatHeaderShowBranch: boolean
+  /** Show git diff +/- summary pill inside the main chat header. */
+  shellChatHeaderShowDiff: boolean
+  /** Show the 'pi' brand row at the top of the left sidebar. */
+  shellSidebarShowBrand: boolean
+  /** Show the 'New chat' quick action row at the top of the left sidebar. */
+  shellSidebarShowNewChat: boolean
+  /** Tab strip visual style for the right workbench dock. */
+  shellRightTabStyle: ShellRightTabStyle
+  /** Show centered search / URL omnibox on the right dock new-tab Launchpad. */
+  shellLaunchpadShowSearch: boolean
+  /** Compact 2x2 shortcut tiles on the right dock new-tab Launchpad. */
+  shellLaunchpadCompact: boolean
+  /** Visibility mode for the inner AI Canvas surface switcher bar. */
+  shellCanvasHeaderMode: ShellCanvasHeaderMode
+  /** Show the bottom global status bar. */
+  shellStatusBarVisible: boolean
+  /** Compact bottom status bar height. */
+  shellStatusBarCompact: boolean
+  /** Main workspace corner radius in px (0 - 20, step 2; default 12). */
+  shellCornerRadius: number
+  /** Show subtle 1px hairlines between adjacent open panes. */
+  shellShowHairlines: boolean
 }
 
 export const DEFAULT_UI_CUSTOMIZATION: UiCustomization = {
@@ -110,6 +155,23 @@ export const DEFAULT_UI_CUSTOMIZATION: UiCustomization = {
   composerContextSwapped: false,
   composerWorktreeMode: 'full',
   composerBranchMode: 'full',
+  shellActivityRailVisible: true,
+  shellActivityRailStyle: 'default',
+  shellTopBarCompact: false,
+  shellChatHeaderVisible: true,
+  shellChatHeaderShowTitle: true,
+  shellChatHeaderShowBranch: true,
+  shellChatHeaderShowDiff: true,
+  shellSidebarShowBrand: true,
+  shellSidebarShowNewChat: true,
+  shellRightTabStyle: 'codex',
+  shellLaunchpadShowSearch: true,
+  shellLaunchpadCompact: false,
+  shellCanvasHeaderMode: 'always',
+  shellStatusBarVisible: true,
+  shellStatusBarCompact: false,
+  shellCornerRadius: 12,
+  shellShowHairlines: true,
 }
 
 function pickEnum<T extends string>(raw: unknown, allowed: readonly T[], fallback: T): T {
@@ -219,6 +281,74 @@ export function normalizeUiCustomization(raw: unknown): UiCustomization {
       COMPOSER_BRANCH_MODES,
       DEFAULT_UI_CUSTOMIZATION.composerBranchMode,
     ),
+    shellActivityRailVisible:
+      typeof src.shellActivityRailVisible === 'boolean'
+        ? src.shellActivityRailVisible
+        : DEFAULT_UI_CUSTOMIZATION.shellActivityRailVisible,
+    shellActivityRailStyle: pickEnum(
+      src.shellActivityRailStyle,
+      SHELL_ACTIVITY_RAIL_STYLES,
+      DEFAULT_UI_CUSTOMIZATION.shellActivityRailStyle,
+    ),
+    shellTopBarCompact:
+      typeof src.shellTopBarCompact === 'boolean'
+        ? src.shellTopBarCompact
+        : DEFAULT_UI_CUSTOMIZATION.shellTopBarCompact,
+    shellChatHeaderVisible:
+      typeof src.shellChatHeaderVisible === 'boolean'
+        ? src.shellChatHeaderVisible
+        : DEFAULT_UI_CUSTOMIZATION.shellChatHeaderVisible,
+    shellChatHeaderShowTitle:
+      typeof src.shellChatHeaderShowTitle === 'boolean'
+        ? src.shellChatHeaderShowTitle
+        : DEFAULT_UI_CUSTOMIZATION.shellChatHeaderShowTitle,
+    shellChatHeaderShowBranch:
+      typeof src.shellChatHeaderShowBranch === 'boolean'
+        ? src.shellChatHeaderShowBranch
+        : DEFAULT_UI_CUSTOMIZATION.shellChatHeaderShowBranch,
+    shellChatHeaderShowDiff:
+      typeof src.shellChatHeaderShowDiff === 'boolean'
+        ? src.shellChatHeaderShowDiff
+        : DEFAULT_UI_CUSTOMIZATION.shellChatHeaderShowDiff,
+    shellSidebarShowBrand:
+      typeof src.shellSidebarShowBrand === 'boolean'
+        ? src.shellSidebarShowBrand
+        : DEFAULT_UI_CUSTOMIZATION.shellSidebarShowBrand,
+    shellSidebarShowNewChat:
+      typeof src.shellSidebarShowNewChat === 'boolean'
+        ? src.shellSidebarShowNewChat
+        : DEFAULT_UI_CUSTOMIZATION.shellSidebarShowNewChat,
+    shellRightTabStyle: pickEnum(
+      src.shellRightTabStyle,
+      SHELL_RIGHT_TAB_STYLES,
+      DEFAULT_UI_CUSTOMIZATION.shellRightTabStyle,
+    ),
+    shellLaunchpadShowSearch:
+      typeof src.shellLaunchpadShowSearch === 'boolean'
+        ? src.shellLaunchpadShowSearch
+        : DEFAULT_UI_CUSTOMIZATION.shellLaunchpadShowSearch,
+    shellLaunchpadCompact:
+      typeof src.shellLaunchpadCompact === 'boolean'
+        ? src.shellLaunchpadCompact
+        : DEFAULT_UI_CUSTOMIZATION.shellLaunchpadCompact,
+    shellCanvasHeaderMode: pickEnum(
+      src.shellCanvasHeaderMode,
+      SHELL_CANVAS_HEADER_MODES,
+      DEFAULT_UI_CUSTOMIZATION.shellCanvasHeaderMode,
+    ),
+    shellStatusBarVisible:
+      typeof src.shellStatusBarVisible === 'boolean'
+        ? src.shellStatusBarVisible
+        : DEFAULT_UI_CUSTOMIZATION.shellStatusBarVisible,
+    shellStatusBarCompact:
+      typeof src.shellStatusBarCompact === 'boolean'
+        ? src.shellStatusBarCompact
+        : DEFAULT_UI_CUSTOMIZATION.shellStatusBarCompact,
+    shellCornerRadius: clampNum(src.shellCornerRadius, 0, 20, 2, DEFAULT_UI_CUSTOMIZATION.shellCornerRadius),
+    shellShowHairlines:
+      typeof src.shellShowHairlines === 'boolean'
+        ? src.shellShowHairlines
+        : DEFAULT_UI_CUSTOMIZATION.shellShowHairlines,
   }
 }
 
@@ -244,11 +374,28 @@ export function isDefaultUiCustomization(value: UiCustomization): boolean {
     value.composerContextSwapped === d.composerContextSwapped &&
     value.composerWorktreeMode === d.composerWorktreeMode &&
     value.composerBranchMode === d.composerBranchMode &&
+    value.shellActivityRailVisible === d.shellActivityRailVisible &&
+    value.shellActivityRailStyle === d.shellActivityRailStyle &&
+    value.shellTopBarCompact === d.shellTopBarCompact &&
+    value.shellChatHeaderVisible === d.shellChatHeaderVisible &&
+    value.shellChatHeaderShowTitle === d.shellChatHeaderShowTitle &&
+    value.shellChatHeaderShowBranch === d.shellChatHeaderShowBranch &&
+    value.shellChatHeaderShowDiff === d.shellChatHeaderShowDiff &&
+    value.shellSidebarShowBrand === d.shellSidebarShowBrand &&
+    value.shellSidebarShowNewChat === d.shellSidebarShowNewChat &&
+    value.shellRightTabStyle === d.shellRightTabStyle &&
+    value.shellLaunchpadShowSearch === d.shellLaunchpadShowSearch &&
+    value.shellLaunchpadCompact === d.shellLaunchpadCompact &&
+    value.shellCanvasHeaderMode === d.shellCanvasHeaderMode &&
+    value.shellStatusBarVisible === d.shellStatusBarVisible &&
+    value.shellStatusBarCompact === d.shellStatusBarCompact &&
+    value.shellCornerRadius === d.shellCornerRadius &&
+    value.shellShowHairlines === d.shellShowHairlines &&
     value.composerToolbarOrder.join(',') === d.composerToolbarOrder.join(',')
   )
 }
 
-export type PiSlotCategory = 'composer' | 'timeline' | 'shell'
+export type PiSlotCategory = 'shell' | 'panels' | 'composer' | 'timeline'
 
 export interface PiSlotDescriptor {
   slot: string
@@ -258,6 +405,20 @@ export interface PiSlotDescriptor {
 }
 
 export const PI_UI_SLOTS: readonly PiSlotDescriptor[] = [
+  { slot: 'shell-top-bar', category: 'shell', labelKey: 'shellTopBar', sampleCss: '[data-pi-slot="shell-top-bar"] {\n  height: 32px;\n}' },
+  { slot: 'left-activity-rail', category: 'shell', labelKey: 'leftActivityRail', sampleCss: '[data-pi-slot="left-activity-rail"] {\n  background: var(--surface-frame);\n}' },
+  { slot: 'sidebar-header', category: 'shell', labelKey: 'sidebarHeader', sampleCss: '[data-pi-slot="sidebar-header"] {\n  padding-inline: 16px;\n}' },
+  { slot: 'shell-sidebar', category: 'shell', labelKey: 'shellSidebar', sampleCss: '[data-pi-slot="shell-sidebar"] {\n  font-size: 13px;\n}' },
+  { slot: 'main-chat-header', category: 'shell', labelKey: 'mainChatHeader', sampleCss: '[data-pi-slot="main-chat-header"] {\n  height: 44px;\n}' },
+  { slot: 'chat-header-title', category: 'shell', labelKey: 'chatHeaderTitle', sampleCss: '[data-pi-slot="chat-header-title"] {\n  font-weight: 600;\n}' },
+  { slot: 'chat-header-branch', category: 'shell', labelKey: 'chatHeaderBranch', sampleCss: '[data-pi-slot="chat-header-branch"] {\n  opacity: 0.7;\n}' },
+  { slot: 'header-diff-toggle', category: 'shell', labelKey: 'headerDiffToggle', sampleCss: '[data-pi-slot="header-diff-toggle"] {\n  font-size: 11px;\n}' },
+  { slot: 'shell-status-bar', category: 'shell', labelKey: 'shellStatusBar', sampleCss: '[data-pi-slot="shell-status-bar"] {\n  opacity: 0.9;\n}' },
+  { slot: 'shell-right-panel', category: 'panels', labelKey: 'shellRightPanel', sampleCss: '[data-pi-slot="shell-right-panel"] {\n  background: var(--bg-base);\n}' },
+  { slot: 'right-dock-tabs', category: 'panels', labelKey: 'rightDockTabs', sampleCss: '[data-pi-slot="right-dock-tabs"] {\n  padding-inline: 12px;\n}' },
+  { slot: 'right-dock-launchpad', category: 'panels', labelKey: 'rightDockLaunchpad', sampleCss: '[data-pi-slot="right-dock-launchpad"] {\n  padding-top: 14vh;\n}' },
+  { slot: 'ai-canvas-panel', category: 'panels', labelKey: 'aiCanvasPanel', sampleCss: '[data-pi-slot="ai-canvas-panel"] {\n  background: var(--bg-base);\n}' },
+  { slot: 'ai-canvas-tabs', category: 'panels', labelKey: 'aiCanvasTabs', sampleCss: '[data-pi-slot="ai-canvas-tabs"] {\n  height: 34px;\n}' },
   { slot: 'composer-dock', category: 'composer', labelKey: 'composerDock', sampleCss: '[data-pi-slot="composer-dock"] {\n  padding-bottom: 12px;\n}' },
   { slot: 'composer-accessory', category: 'composer', labelKey: 'composerAccessory', sampleCss: '[data-pi-slot="composer-accessory"] {\n  opacity: 0.9;\n}' },
   { slot: 'composer-shell', category: 'composer', labelKey: 'composerShell', sampleCss: '[data-pi-slot="composer-shell"] {\n  --composer-shell-radius: 10px;\n}' },
@@ -283,9 +444,6 @@ export const PI_UI_SLOTS: readonly PiSlotDescriptor[] = [
   { slot: 'timeline-thinking', category: 'timeline', labelKey: 'timelineThinking', sampleCss: '[data-pi-slot="timeline-thinking"] {\n  font-size: 12px;\n}' },
   { slot: 'timeline-tool-group', category: 'timeline', labelKey: 'timelineToolGroup', sampleCss: '[data-pi-slot="timeline-tool-group"] {\n  opacity: 0.9;\n}' },
   { slot: 'timeline-code-block', category: 'timeline', labelKey: 'timelineCodeBlock', sampleCss: '[data-pi-slot="timeline-code-block"] {\n  border-radius: 8px;\n}' },
-  { slot: 'shell-sidebar', category: 'shell', labelKey: 'shellSidebar', sampleCss: '[data-pi-slot="shell-sidebar"] {\n  font-size: 13px;\n}' },
-  { slot: 'shell-right-panel', category: 'shell', labelKey: 'shellRightPanel', sampleCss: '[data-pi-slot="shell-right-panel"] {\n  background: var(--bg-base);\n}' },
-  { slot: 'shell-status-bar', category: 'shell', labelKey: 'shellStatusBar', sampleCss: '[data-pi-slot="shell-status-bar"] {\n  opacity: 0.9;\n}' },
 ] as const
 
 export interface CssRecipeDescriptor {
@@ -330,6 +488,42 @@ export const PI_CSS_RECIPES: readonly CssRecipeDescriptor[] = [
 .prose-chat h2 {
   padding-bottom: 0.28em;
   border-bottom: 1px solid color-mix(in srgb, var(--border-base) 55%, transparent);
+}`,
+  },
+  {
+    id: 'glass-activity-rail',
+    labelKey: 'glassActivityRail',
+    css: `/* Soft capsule elevation for far-left activity rail icons */
+[data-pi-slot="left-activity-rail"] button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--brand) 14%, var(--bg-base));
+  color: var(--brand);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}`,
+  },
+  {
+    id: 'borderless-minimal',
+    labelKey: 'borderlessMinimal',
+    css: `/* Sharp zero-radius edge-to-edge workspace */
+:root {
+  --main-chat-surface-radius: 0px;
+  --shell-hairline: transparent;
+}`,
+  },
+  {
+    id: 'floating-chat-header',
+    labelKey: 'floatingChatHeader',
+    css: `/* Frosted glass header strip above timeline */
+[data-pi-slot="main-chat-header"] {
+  background: color-mix(in srgb, var(--chat-bg) 78%, transparent);
+  backdrop-filter: blur(12px);
+}`,
+  },
+  {
+    id: 'compact-launchpad',
+    labelKey: 'compactLaunchpad',
+    css: `/* Higher-gravity compact new-tab launchpad */
+[data-pi-slot="right-dock-launchpad"] {
+  padding-top: 10vh;
 }`,
   },
 ] as const

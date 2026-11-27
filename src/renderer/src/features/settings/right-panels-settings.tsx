@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GripVertical, LayoutPanelLeft } from '@renderer/components/icons'
+import { GripVertical } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import type { RightPanelCatalogItem } from '@shared/right-panels'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
-import { Toggle } from '@renderer/features/settings/settings-page-shared'
+import { SettingRow, SettingsSection, Toggle } from '@renderer/features/settings/settings-page-shared'
 import { btnOutline } from '@renderer/features/settings/settings-controls'
 import { BrowserSettingsSection } from '@renderer/features/browser/browser-settings-section'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { isStageRightPanelId } from '@shared/right-panels'
 
 export function RightPanelsSettings() {
   const { t } = useTranslation()
@@ -43,7 +44,7 @@ export function RightPanelsSettings() {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col gap-7">
       <SettingsPageHeader
         title={t('settings:nav.rightPanels')}
         description={t('settings:rightPanels.description')}
@@ -67,126 +68,135 @@ export function RightPanelsSettings() {
         }
       />
 
-      <div className="mb-3 flex items-center gap-3 rounded-lg border border-border/40 px-3 py-2.5">
-        <div className="min-w-0 flex-1">
-          <div className="text-sm text-foreground">{t('settings:rightPanels.railIcons')}</div>
-          <div className="text-xs text-muted-foreground">{t('settings:rightPanels.railIconsDesc')}</div>
-        </div>
-        <Toggle on={railIcons} onChange={setRailIcons} />
-      </div>
+      <SettingsSection title={t('settings:rightPanels.behaviorSection')}>
+        <SettingRow
+          label={t('settings:rightPanels.railIcons')}
+          description={t('settings:rightPanels.railIconsDesc')}
+        >
+          <Toggle on={railIcons} onChange={setRailIcons} />
+        </SettingRow>
+      </SettingsSection>
 
-      <div className="mb-4 flex items-center gap-2 rounded-lg border border-border/40 bg-[var(--bg-1)]/50 px-3 py-2 text-sm text-muted-foreground">
-        <LayoutPanelLeft className="h-4 w-4 shrink-0 text-muted-foreground/50" strokeWidth={1.5} />
-        <span>
-          {t('settings:rightPanels.enabledCount', { enabled: enabledCount, total: order.length })}
-        </span>
-      </div>
-
-      <ul
-        className="relative space-y-1.5 rounded-lg border border-border/40 p-1.5"
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverIndex(null)
-        }}
+      <SettingsSection
+        title={t('settings:rightPanels.listSection')}
+        description={t('settings:rightPanels.enabledCount', { enabled: enabledCount, total: order.length })}
       >
-        {orderedItems.map((item, index) => {
-          const label = item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel
-          const desc = item.descriptionKey ? t(item.descriptionKey, { defaultValue: item.description }) : item.description
-          const on = !!prefs[item.id]
-          const lastOne = on && enabledCount <= 1
-          const isDragging = dragId === item.id
-          const showLineBefore = overIndex === index && dragId !== item.id
+        <ul
+          className="settings-flush relative divide-y divide-[var(--shell-hairline)]"
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverIndex(null)
+          }}
+        >
+          {orderedItems.map((item, index) => {
+            const label = item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel
+            const desc = item.descriptionKey ? t(item.descriptionKey, { defaultValue: item.description }) : item.description
+            const on = !!prefs[item.id]
+            const lastOne = on && enabledCount <= 1
+            const isDragging = dragId === item.id
+            const showLineBefore = overIndex === index && dragId !== item.id
+            const isStage = isStageRightPanelId(item.id)
 
-          return (
-            <li key={item.id} className="relative list-none">
-              {showLineBefore && (
-                <div
-                  className="pointer-events-none absolute -top-1 left-2 right-2 z-10 h-0.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
-                  aria-hidden
-                />
-              )}
-              <div
-                draggable
-                onDragStart={(e) => {
-                  setDragId(item.id)
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', item.id)
-                }}
-                onDragEnd={() => {
-                  setDragId(null)
-                  setOverIndex(null)
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  setOverIndex(index)
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  const from = dragId || e.dataTransfer.getData('text/plain')
-                  if (!from) return
-                  reorderRightPanels(from, index)
-                  setDragId(null)
-                  setOverIndex(null)
-                }}
-                className={cn(
-                  'group flex items-center gap-2 rounded-lg border border-border/40 bg-card/40 px-2 py-2.5 transition-all duration-motion-normal ease-motion-ease',
-                  'hover:border-border/70 hover:bg-accent/30 hover:shadow-sm',
-                  isDragging && 'scale-[0.98] border-primary/40 bg-accent/50 opacity-80 shadow-md',
+            return (
+              <li key={item.id} className="relative list-none">
+                {showLineBefore && (
+                  <div
+                    className="pointer-events-none absolute -top-px left-3 right-3 z-10 h-0.5 rounded-full bg-[var(--brand)]"
+                    aria-hidden
+                  />
                 )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="text-base font-medium text-foreground">{label}</div>
-                    {item.source === 'adapter' && (
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-2xs text-primary">{t('adapters:title')}</span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground/70">{desc}</div>
-                  <div className="mt-1 font-mono text-2xs text-muted-foreground/50">
-                    {item.id}
-                    {item.adapterId ? ` · ${item.adapterId}` : ''}
-                  </div>
-                </div>
-
-                <Toggle on={on} onChange={(v) => setOne(item.id, v)} disabled={lastOne && on} />
                 <div
-                  aria-hidden
+                  draggable
+                  onDragStart={(e) => {
+                    setDragId(item.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', item.id)
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null)
+                    setOverIndex(null)
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setOverIndex(index)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const from = dragId || e.dataTransfer.getData('text/plain')
+                    if (!from) return
+                    reorderRightPanels(from, index)
+                    setDragId(null)
+                    setOverIndex(null)
+                  }}
                   className={cn(
-                    'flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/35',
-                    'hover:bg-muted/60 hover:text-muted-foreground active:cursor-grabbing',
-                    isDragging && 'cursor-grabbing text-primary',
+                    'group flex items-center gap-3 px-4 py-3 transition-colors duration-motion-fast',
+                    'hover:bg-foreground/[0.025]',
+                    isDragging && 'bg-foreground/[0.05] opacity-70',
                   )}
                 >
-                  <GripVertical className="h-4 w-4" strokeWidth={1.5} />
+                  <div
+                    aria-hidden
+                    className={cn(
+                      'flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded-md text-foreground-secondary/40',
+                      'hover:bg-foreground/[0.05] hover:text-foreground-secondary active:cursor-grabbing',
+                      isDragging && 'cursor-grabbing text-[var(--brand)]',
+                    )}
+                  >
+                    <GripVertical className="h-4 w-4" strokeWidth={1.5} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="text-[13.5px] font-medium text-foreground">{label}</div>
+                      {isStage ? (
+                        <span className="rounded-md bg-[var(--brand)]/10 px-1.5 py-0.5 text-[10.5px] font-medium text-[var(--brand)]">
+                          {t('common:panel.stageGroup')}
+                        </span>
+                      ) : null}
+                      {item.source === 'adapter' && (
+                        <span className="rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-[10.5px] text-foreground-secondary">
+                          {t('adapters:title')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-foreground-secondary/80">{desc}</div>
+                    <div className="mt-0.5 font-mono text-[10.5px] text-foreground-secondary/50">
+                      {item.id}
+                      {item.adapterId ? ` · ${item.adapterId}` : ''}
+                    </div>
+                  </div>
+
+                  <Toggle on={on} onChange={(v) => setOne(item.id, v)} disabled={lastOne && on} />
                 </div>
-              </div>
+              </li>
+            )
+          })}
+          {overIndex === orderedItems.length && dragId && (
+            <li className="relative h-0 list-none">
+              <div className="absolute -top-px left-3 right-3 h-0.5 rounded-full bg-[var(--brand)]" />
             </li>
-          )
-        })}
-        {overIndex === orderedItems.length && dragId && (
-          <li className="relative h-0 list-none">
-            <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-          </li>
-        )}
-        {orderedItems.length > 0 && (
-          <li
-            className="h-2 list-none"
-            onDragOver={(e) => {
-              e.preventDefault()
-              setOverIndex(orderedItems.length)
-            }}
-            onDrop={(e) => {
-              e.preventDefault()
-              const from = dragId || e.dataTransfer.getData('text/plain')
-              if (!from) return
-              reorderRightPanels(from, orderedItems.length)
-              setDragId(null)
-              setOverIndex(null)
-            }}
-          />
-        )}
-      </ul>
-      {prefs.browser ? <div className="pt-4"><BrowserSettingsSection /></div> : null}
+          )}
+          {orderedItems.length > 0 && (
+            <li
+              className="h-1 list-none"
+              onDragOver={(e) => {
+                e.preventDefault()
+                setOverIndex(orderedItems.length)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                const from = dragId || e.dataTransfer.getData('text/plain')
+                if (!from) return
+                reorderRightPanels(from, orderedItems.length)
+                setDragId(null)
+                setOverIndex(null)
+              }}
+            />
+          )}
+        </ul>
+      </SettingsSection>
+
+      {prefs.browser ? <BrowserSettingsSection /> : null}
     </div>
   )
 }

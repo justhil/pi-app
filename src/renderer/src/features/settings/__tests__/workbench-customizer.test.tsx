@@ -17,6 +17,7 @@ import {
   WorkbenchComposerControls,
   WorkbenchCssInspectorControls,
   WorkbenchReadingControls,
+  WorkbenchShellControls,
   reorderToolbarItems,
 } from '../workbench-customizer-controls'
 
@@ -171,5 +172,53 @@ describe('Interactive Workbench Controls', () => {
 
     fireEvent.click(screen.getByText('composer-purge-btn'))
     expect(cssState.css).toContain('[data-pi-slot="composer-purge-btn"]')
+
+    // Switch to 'panels' category and insert AI Canvas slot
+    fireEvent.click(screen.getByRole('button', { name: 'settings:appearance.workbench.slotCategories.panels' }))
+    fireEvent.click(screen.getByText('ai-canvas-panel'))
+    expect(cssState.css).toContain('[data-pi-slot="ai-canvas-panel"]')
+  })
+
+  it('toggles shell visibility options and applies quick shell layout presets', () => {
+    let latest: UiCustomization = DEFAULT_UI_CUSTOMIZATION
+    function ShellHarness() {
+      const [ui, setUi] = useState<UiCustomization>(DEFAULT_UI_CUSTOMIZATION)
+      return (
+        <WorkbenchShellControls
+          ui={ui}
+          onUiChange={(p) => {
+            const next = normalizeUiCustomization({ ...ui, ...p })
+            latest = next
+            setUi(next)
+          }}
+        />
+      )
+    }
+
+    render(<ShellHarness />)
+
+    // Apply Zen preset -> hides far-left activity rail, main chat header, status bar & sets 0px radius
+    fireEvent.click(screen.getByRole('button', { name: /settings:appearance\.workbench\.shellPresets\.zen/ }))
+    expect(latest.shellActivityRailVisible).toBe(false)
+    expect(latest.shellChatHeaderVisible).toBe(false)
+    expect(latest.shellStatusBarVisible).toBe(false)
+    expect(latest.shellCanvasHeaderMode).toBe('hidden')
+    expect(latest.shellCornerRadius).toBe(0)
+    expect(latest.shellShowHairlines).toBe(false)
+
+    applyUiCustomizationToDocument(latest)
+    expect(document.documentElement.getAttribute('data-shell-activity-rail')).toBe('hidden')
+    expect(document.documentElement.getAttribute('data-shell-chat-header')).toBe('hidden')
+    expect(document.documentElement.getAttribute('data-shell-status-bar')).toBe('hidden')
+    expect(document.documentElement.getAttribute('data-shell-hairlines')).toBe('hidden')
+    const css = document.getElementById('pi-ui-customization-vars')?.textContent ?? ''
+    expect(css).toContain('--shell-corner-radius: 0px;')
+    expect(css).toContain('--shell-hairline: transparent;')
+
+    // Restore standard preset
+    fireEvent.click(screen.getByRole('button', { name: /settings:appearance\.workbench\.shellPresets\.standard/ }))
+    expect(latest.shellActivityRailVisible).toBe(true)
+    expect(latest.shellChatHeaderVisible).toBe(true)
+    expect(latest.shellStatusBarVisible).toBe(true)
   })
 })

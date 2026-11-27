@@ -1,6 +1,13 @@
 /** 右侧栏 Tab：核心栏目 + 适配器声明的 sidePanel（合并后用于 Tab / 设置开关） */
 
-export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'browser', 'worktrees', 'github'] as const
+export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'canvas', 'browser', 'worktrees', 'github'] as const
+
+export const STAGE_RIGHT_PANEL_IDS = ['canvas', 'browser'] as const
+export type StageRightPanelId = (typeof STAGE_RIGHT_PANEL_IDS)[number]
+
+export function isStageRightPanelId(id: string | null | undefined): id is StageRightPanelId {
+  return id === 'canvas' || id === 'browser'
+}
 
 export type CoreRightPanelId = (typeof CORE_RIGHT_PANEL_IDS)[number]
 
@@ -28,6 +35,7 @@ export const CORE_RIGHT_PANEL_CATALOG: RightPanelCatalogItem[] = [
   { id: 'context', labelKey: 'panel.context', fallbackLabel: 'Context', description: 'Session context preview', descriptionKey: 'panel.contextDesc', icon: 'FileSearch', source: 'core' },
   { id: 'tree', labelKey: 'panel.tree', fallbackLabel: 'Tree', description: 'Session tree / rewind (like /tree)', descriptionKey: 'panel.treeDesc', icon: 'ListTree', source: 'core' },
   { id: 'files', labelKey: 'panel.files', fallbackLabel: 'Files', description: 'Workspace file preview & explorer', descriptionKey: 'panel.filesDesc', icon: 'FolderTree', source: 'core' },
+  { id: 'canvas', labelKey: 'panel.canvas', fallbackLabel: 'Canvas', description: 'Interactive AI canvas for live previews, device screens & delegation graphs', descriptionKey: 'panel.canvasDesc', icon: 'Layers', source: 'core' },
   { id: 'browser', labelKey: 'panel.browser', fallbackLabel: 'Browser', description: 'Built-in web browser & page inspector', descriptionKey: 'panel.browserDesc', icon: 'Globe', source: 'core' },
   { id: 'worktrees', labelKey: 'panel.worktrees', fallbackLabel: 'Worktrees', description: 'Manage & launch parallel Git worktrees', descriptionKey: 'panel.worktreesDesc', icon: 'FolderGit2', source: 'core' },
   { id: 'github', labelKey: 'panel.github', fallbackLabel: 'GitHub', description: 'GitHub Pull Requests, Issues & CI Checks', descriptionKey: 'panel.githubDesc', icon: 'GitFork', source: 'core' },
@@ -38,7 +46,7 @@ export const RIGHT_PANEL_CATALOG = CORE_RIGHT_PANEL_CATALOG
 
 export type RightPanelPrefs = Record<string, boolean>
 
-/** Default: only Files + Run enabled (display-shell right-rail declutter). */
+/** Default: Stage (Canvas + Browser) plus core Inspector (Files + Run) enabled for a clean workbench. */
 export function defaultCoreRightPanelPrefs(): RightPanelPrefs {
   return {
     review: false,
@@ -46,9 +54,10 @@ export function defaultCoreRightPanelPrefs(): RightPanelPrefs {
     context: false,
     tree: false,
     files: true,
+    canvas: true,
     browser: true,
-    worktrees: true,
-    github: true,
+    worktrees: false,
+    github: false,
   }
 }
 

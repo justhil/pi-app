@@ -235,6 +235,7 @@ const themeVariantSchema = z
         userBubble: hexColorSchema.optional(),
         codeBg: hexColorSchema.optional(),
         border: hexColorSchema.optional(),
+        frame: hexColorSchema.optional(),
       })
       .strict()
       .optional(),

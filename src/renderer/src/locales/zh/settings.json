@@ -170,14 +170,70 @@
     "timelineUserMessageBubble": "右侧气泡",
     "timelineUserMessagePromptCard": "左对齐提示卡",
     "workbench": {
-      "openLiveStudio": "打开实时定制工作台",
+      "openLiveStudio": "实时调校",
       "openLiveStudioDesc": "回到真实对话窗口，边看真实消息与输入框边拖拽调校",
       "dragWindowHint": "按住标题栏可自由拖动面板位置",
       "tabs": {
-        "workbench": "工作台布局",
+        "shell": "壳层面板",
+        "workbench": "对话输入",
         "theme": "主题材质",
         "css": "CSS 定制"
       },
+      "shellSectionTitle": "工作台壳层与新面板",
+      "shellSectionDesc": "自由显示或隐藏最左侧活动栏、顶部标题栏、侧栏品牌、新标签启动台、AI 画布头与底部状态栏。",
+      "shellPresetsTitle": "一键壳层布局",
+      "shellPresets": {
+        "standard": "标准四栏",
+        "standardHint": "保留活动栏、对话顶栏、状态栏与柔和圆角",
+        "focus": "极简专注",
+        "focusHint": "隐藏活动栏与状态栏，精简标题信息",
+        "zen": "沉浸无框",
+        "zenHint": "全隐壳层修饰与分割线，最大画布面积"
+      },
+      "shellGroupChrome": "活动栏、顶栏与状态栏",
+      "shellGroupHeaderSidebar": "主对话标题栏与左侧栏",
+      "shellGroupRightPanels": "右侧标签、新标签启动台与 AI 画布",
+      "shellActivityRailVisible": "显示最左侧活动栏",
+      "shellActivityRailVisibleDesc": "隐藏后，设置、刷新与通知入口会自动收纳到右上窗口栏。",
+      "shellActivityRailStyleLabel": "活动栏形态",
+      "shellActivityRailStyles": {
+        "default": "标准 (48px)",
+        "compact": "紧凑 (40px)",
+        "floating": "悬浮胶囊"
+      },
+      "shellTopBarCompact": "超薄顶部窗口栏",
+      "shellTopBarCompactDesc": "将窗口顶部高度从 36px 压缩至 30px。",
+      "shellStatusBarVisible": "显示底部状态栏",
+      "shellStatusBarVisibleDesc": "隐藏底部运行状态与内存指示条以腾出纵向空间。",
+      "shellStatusBarCompact": "紧凑状态栏",
+      "shellStatusBarCompactDesc": "进一步收窄底部状态栏高度。",
+      "shellCornerRadius": "工作区圆角",
+      "shellShowHairlines": "显示面板微分割线",
+      "shellShowHairlinesDesc": "控制主对话与右侧面板之间 1px 极细分割线。",
+      "shellChatHeaderVisible": "显示主对话顶部标题栏",
+      "shellChatHeaderVisibleDesc": "隐藏整行顶部标题栏，让对话与画布直抵顶缘。",
+      "shellChatHeaderShowTitle": "显示会话标题",
+      "shellChatHeaderShowBranch": "显示 Git 分支",
+      "shellChatHeaderShowDiff": "显示变更统计 (+N -M)",
+      "shellSidebarShowBrand": "显示侧栏顶部 pi 标题",
+      "shellSidebarShowBrandDesc": "关闭后省去品牌行，搜索入口自动移至下方。",
+      "shellSidebarShowNewChat": "显示侧栏「新聊天」入口",
+      "shellRightTabStyleLabel": "右侧标签样式",
+      "shellRightTabStyles": {
+        "codex": "柔和胶囊",
+        "minimal": "极简纯字",
+        "underline": "底线高亮"
+      },
+      "shellCanvasHeaderLabel": "AI 画布内视图切换栏",
+      "shellCanvasHeaderModes": {
+        "always": "始终显示",
+        "multi-only": "仅多视图时",
+        "hidden": "隐藏（悬停露菜单）"
+      },
+      "shellLaunchpadShowSearch": "新标签页显示居中搜索/网址栏",
+      "shellLaunchpadShowSearchDesc": "关闭后仅保留快捷面板卡片。",
+      "shellLaunchpadCompact": "新标签页紧凑卡片",
+      "shellLaunchpadCompactDesc": "使用更精巧的横向双列快捷入口。",
       "midProseTitle": "中间步骤文字样式",
       "midProseDesc": "工具调用之间的过渡说明文字呈现方式（默认与正式正文一致）。",
       "midProse": {
@@ -248,17 +304,36 @@
       "cssRecipesTitle": "一键样式配方",
       "cssSlotsTitle": "稳定选择器（悬停高亮，点击插入）",
       "slotCategories": {
+        "shell": "壳层与顶栏",
+        "panels": "右侧与画布",
         "composer": "输入框 Composer",
-        "timeline": "对话区 Timeline",
-        "shell": "全局壳层 Shell"
+        "timeline": "对话区 Timeline"
       },
       "recipes": {
         "hoverToolbar": "失焦自动淡化底栏次要按钮",
         "pillSend": "圆形发送与语音按钮",
         "wideCode": "代码块高对比微立体边框",
-        "editorialHeadings": "H2 章节标题底部分割线"
+        "editorialHeadings": "H2 章节标题底部分割线",
+        "glassActivityRail": "活动栏激活态主题色微胶囊",
+        "borderlessMinimal": "零圆角无分割线纯平工作台",
+        "floatingChatHeader": "对话顶栏毛玻璃半透明悬浮",
+        "compactLaunchpad": "新标签启动台上提紧凑排布"
       },
       "slots": {
+        "shellTopBar": "顶部窗口栏",
+        "leftActivityRail": "最左侧活动栏",
+        "sidebarHeader": "侧栏顶部品牌与搜索栏",
+        "shellSidebar": "左侧项目与会话栏",
+        "mainChatHeader": "主对话顶部标题栏",
+        "chatHeaderTitle": "顶部会话标题",
+        "chatHeaderBranch": "顶部 Git 分支标签",
+        "headerDiffToggle": "顶部变更统计徽章",
+        "shellStatusBar": "底部全局状态栏",
+        "shellRightPanel": "右侧工作台容器",
+        "rightDockTabs": "右侧顶栏标签条",
+        "rightDockLaunchpad": "右侧新标签页启动台",
+        "aiCanvasPanel": "AI 画布主面板",
+        "aiCanvasTabs": "AI 画布内视图切换条",
         "composerDock": "底部悬浮底座",
         "composerAccessory": "顶部附属条（Todo/活动）",
         "composerShell": "输入框主外壳",
@@ -281,9 +356,6 @@
         "timelineThinking": "思考链折叠块",
         "timelineToolGroup": "工具调用聚合块",
         "timelineCodeBlock": "Markdown 代码块",
-        "shellSidebar": "左侧项目与会话栏",
-        "shellRightPanel": "右侧工作台面板",
-        "shellStatusBar": "底部全局状态栏",
         "composerContextStrip": "上下文条容器",
         "composerWorktreeBtn": "Worktree 环境切换器",
         "composerBranchBtn": "Git 分支选择器"
@@ -322,7 +394,19 @@
     "timelineToolAutoExpandMax": "工具自动展开上限",
     "timelineToolAutoExpandMaxDesc": "运行中同时展开详情的工具数，0 为始终折叠。",
     "title": "外观",
-    "description": "主题、字体与界面密度。",
+    "description": "主题、壳层布局、光学材质与界面细节。",
+    "jump": {
+      "label": "外观分区跳转",
+      "base": "基础",
+      "shell": "壳层与面板",
+      "themes": "主题与材质",
+      "background": "背景壁纸",
+      "composer": "输入框",
+      "timeline": "时间线"
+    },
+    "livePreviewTitle": "实时效果预览",
+    "livePreviewPrompt": "帮我调整工作台主题与圆角",
+    "livePreviewReply": "已同步外框色调、光学材质与代码高亮",
     "density": "密度",
     "zoom": "界面缩放",
     "zoomDesc": "只调整本窗口的字号和间距。",
@@ -419,7 +503,10 @@
       "rosePine": "Rosé Pine",
       "tokyoNight": "Tokyo Night",
       "vscodePlus": "VS Code Light+",
-      "codexDark": "Codex Dark"
+      "codexDark": "Codex Dark",
+      "codexLight": "Codex Light",
+      "nord": "Nord 冰川",
+      "catppuccin": "Catppuccin"
     },
     "groupLayout": "构图、版式与代码高亮",
     "groupMaterials": "光学材质与内置底衬",
@@ -483,6 +570,8 @@
     "backdropOptions": {
       "none": "无",
       "ambient": "环境漫射微光",
+      "aurora": "极光柔雾",
+      "mesh": "强调色微光场",
       "dots": "工程点阵",
       "grid": "制图细网格",
       "grain": "胶片纸张颗粒"
@@ -526,6 +615,7 @@
     "colorUserBubble": "你的消息",
     "colorCode": "代码块",
     "colorBorder": "边框",
+    "colorFrame": "外框与活动栏",
     "fontDisplay": "标题字体",
     "fontDisplayDesc": "用于回复中的标题；「衬线」使用系统自带的衬线字体。",
     "fontDisplayUi": "与界面相同",
@@ -543,7 +633,10 @@
     "varInsert": "插入到 CSS",
     "varSurface": "窗口背景",
     "varChat": "聊天区",
+    "varFrame": "外框与活动栏底色",
     "varSidebar": "侧栏",
+    "varHairline": "面板极细分割线",
+    "varShellCorner": "工作区圆角",
     "varUserBubble": "你的消息",
     "varCode": "代码块",
     "varText": "文字",
@@ -1268,12 +1361,14 @@
     }
   },
   "rightPanels": {
-    "description": "拖动调整右侧栏标签的顺序和显隐，保存后主界面立即更新。",
+    "description": "拖动调整右侧栏标签（含 AI 画布与浏览器等舞台面板）的顺序和显隐，保存后主界面立即更新。",
+    "behaviorSection": "收起与交互行为",
+    "listSection": "已注册面板",
     "refreshCatalog": "刷新目录",
     "keepOne": "至少保留一个栏目",
     "enabledCount": "已启用 {{enabled}} / {{total}} 个栏目 · 拖拽排序",
-    "railIcons": "收起后保留面板图标",
-    "railIconsDesc": "右侧栏收起时在窗口边缘显示一列栏目图标。立即生效。"
+    "railIcons": "收起后保留贴边极简图标轨",
+    "railIconsDesc": "默认关闭（右侧栏彻底收起为 0px，主画布更纯净）；开启后在右缘保留极简图标轨，一键切换画布、浏览器或检查器。立即生效。"
   },
   "common_confirm": {
     "confirm": "确定",

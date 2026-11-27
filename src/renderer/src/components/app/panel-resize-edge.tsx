@@ -24,7 +24,7 @@ export function PanelResizeEdge({
       }}
       className={cn(
         'panel-resize-edge electron-no-drag z-[60] cursor-col-resize',
-        side === 'left' && 'panel-resize-edge--left shrink-0 self-stretch',
+        side === 'left' && 'panel-resize-edge--left',
         side === 'right' && 'panel-resize-edge--right',
         dragging && 'panel-resize-edge--dragging',
       )}

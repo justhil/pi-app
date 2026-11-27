@@ -133,7 +133,7 @@ const store = new Store<StoreSchema>({
   name: 'pi-desktop',
   defaults: {
     recentProjects: [],
-    recentProjectsFixedOrder: false,
+    recentProjectsFixedOrder: true,
     currentProject: null,
     windowBounds: null,
     theme: 'system',

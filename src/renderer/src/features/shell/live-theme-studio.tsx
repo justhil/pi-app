@@ -14,6 +14,7 @@ import {
   SHIKI_THEME_IDS,
   SURFACE_MATERIALS,
   THEME_DENSITIES,
+  WINDOW_MATERIALS,
   type CustomCssOverride,
   type CustomTheme,
   type ShikiThemeId,
@@ -25,6 +26,7 @@ import {
   type ThemeSurfaceMaterial,
   type ThemeVariant,
   type ThemeVariantKey,
+  type ThemeWindowMaterial,
 } from '@shared/custom-theme'
 import {
   DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
@@ -49,6 +51,7 @@ import {
   WorkbenchComposerControls,
   WorkbenchCssInspectorControls,
   WorkbenchReadingControls,
+  WorkbenchShellControls,
 } from '@renderer/features/settings/workbench-customizer-controls'
 import { presetsFor, presetVariant } from '@renderer/lib/theme/presets'
 import { Switch } from '@renderer/components/ui/switch'
@@ -79,7 +82,7 @@ const DEFAULT_FALLBACK: Record<ThemeVariantKey, ThemeVariant> = {
   },
 }
 
-type StudioTab = 'workbench' | 'theme' | 'css'
+type StudioTab = 'shell' | 'workbench' | 'theme' | 'css'
 
 interface StudioSnapshot {
   theme: CustomTheme
@@ -105,7 +108,7 @@ export function LiveThemeStudio({
   const panelRef = useRef<HTMLElement>(null)
   const dragStateRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [tab, setTab] = useState<StudioTab>('workbench')
+  const [tab, setTab] = useState<StudioTab>('shell')
 
   const [snapshot, setSnapshot] = useState<StudioSnapshot>({
     theme: {},
@@ -358,8 +361,8 @@ export function LiveThemeStudio({
       </div>
 
       {/* Category Tabs */}
-      <div className="grid grid-cols-3 gap-1 border-b border-border/55 bg-[var(--bg-1)]/45 px-2.5 py-1.5 text-[11.5px]">
-        {(['workbench', 'theme', 'css'] as const).map((tabKey) => (
+      <div className="grid grid-cols-4 gap-1 border-b border-border/55 bg-[var(--bg-1)]/45 px-2.5 py-1.5 text-[11px]">
+        {(['shell', 'workbench', 'theme', 'css'] as const).map((tabKey) => (
           <button
             key={tabKey}
             type="button"
@@ -370,7 +373,7 @@ export function LiveThemeStudio({
               setTab(tabKey)
             }}
             className={cn(
-              'rounded-md py-1 text-center font-medium transition-colors',
+              'truncate rounded-md px-1 py-1 text-center font-medium transition-colors',
               tab === tabKey
                 ? 'bg-background text-foreground shadow-2xs ring-1 ring-border/70'
                 : 'text-muted-foreground hover:text-foreground',
@@ -383,6 +386,10 @@ export function LiveThemeStudio({
 
       {/* Scrollable Body */}
       <div className="studio-thin-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3.5 py-3 text-[11.5px]">
+        {tab === 'shell' && (
+          <WorkbenchShellControls compact ui={workingUi} onUiChange={updateUi} />
+        )}
+
         {tab === 'workbench' && (
           <>
             <div>
@@ -433,7 +440,7 @@ export function LiveThemeStudio({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {(
                 [
                   ['accent', t('settings:appearance.accent')],
@@ -451,6 +458,58 @@ export function LiveThemeStudio({
                   />
                 </label>
               ))}
+              <label className="flex flex-col gap-1">
+                <span className="truncate text-[10.5px] text-muted-foreground">
+                  {t('settings:appearance.colorFrame')}
+                </span>
+                <input
+                  type="color"
+                  value={activeVariant.colors?.frame ?? activeVariant.colors?.sidebar ?? (mode === 'dark' ? '#161618' : '#f8f8f9')}
+                  onChange={(e) =>
+                    updateVariant({
+                      colors: {
+                        ...(activeVariant.colors ?? {}),
+                        frame: e.target.value,
+                        sidebar: e.target.value,
+                      },
+                    })
+                  }
+                  className="h-7 w-full cursor-pointer rounded border border-border bg-background p-0.5"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-0.5">
+                <div className="flex justify-between text-[10.5px]">
+                  <span className="text-muted-foreground">{t('settings:appearance.radius')}</span>
+                  <span className="font-mono">{activeVariant.radius ?? 10}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={activeVariant.radius ?? 10}
+                  onChange={(e) => updateVariant({ radius: Number(e.target.value) })}
+                  className="w-full accent-[var(--brand)]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <div className="flex justify-between text-[10.5px]">
+                  <span className="text-muted-foreground">{t('settings:appearance.shadow')}</span>
+                  <span className="font-mono">{activeVariant.shadow ?? 30}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={activeVariant.shadow ?? 30}
+                  onChange={(e) => updateVariant({ shadow: Number(e.target.value) })}
+                  className="w-full accent-[var(--brand)]"
+                />
+              </label>
             </div>
 
             <div>
@@ -589,6 +648,34 @@ export function LiveThemeStudio({
                       className="w-full accent-[var(--brand)]"
                     />
                   </label>
+                  {activeVariant.surfaceMaterial === 'liquid-glass' ? (
+                    <>
+                      <label className="flex flex-col gap-0.5">
+                        <div className="flex justify-between text-[10.5px]">
+                          <span className="text-muted-foreground">{t('settings:appearance.glassSpecular')}</span>
+                          <span className="font-mono">{Math.round((activeVariant.glassSpecular ?? 0.65) * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={activeVariant.glassSpecular ?? 0.65}
+                          onChange={(e) => updateVariant({ glassSpecular: Number(e.target.value) })}
+                          className="w-full accent-[var(--brand)]"
+                        />
+                      </label>
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <span className="text-[10.5px] text-muted-foreground">
+                          {t('settings:appearance.glassDispersion')}
+                        </span>
+                        <Switch
+                          checked={Boolean(activeVariant.glassDispersion)}
+                          onCheckedChange={(glassDispersion) => updateVariant({ glassDispersion })}
+                        />
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -609,19 +696,52 @@ export function LiveThemeStudio({
                 </select>
               </div>
               <div>
-                <div className="mb-1 text-[10.5px] text-muted-foreground">{t('settings:appearance.codeTheme')}</div>
+                <div className="mb-1 text-[10.5px] text-muted-foreground">{t('settings:appearance.windowMaterial')}</div>
                 <select
-                  value={activeVariant.codeTheme ?? (mode === 'dark' ? 'github-dark' : 'github-light')}
-                  onChange={(e) => updateVariant({ codeTheme: e.target.value as ShikiThemeId })}
-                  className="h-7 w-full rounded border border-border bg-background px-1.5 font-mono text-[10.5px]"
+                  value={activeVariant.windowMaterial ?? 'none'}
+                  onChange={(e) => updateVariant({ windowMaterial: e.target.value as ThemeWindowMaterial })}
+                  className="h-7 w-full rounded border border-border bg-background px-1.5 text-[11px]"
                 >
-                  {SHIKI_THEME_IDS.map((id) => (
-                    <option key={id} value={id}>
-                      {id}
+                  {WINDOW_MATERIALS.map((wm) => (
+                    <option key={wm} value={wm}>
+                      {t(`settings:appearance.windowMaterialOptions.${wm}`)}
                     </option>
                   ))}
                 </select>
               </div>
+            </div>
+
+            {activeVariant.backdropPreset && activeVariant.backdropPreset !== 'none' ? (
+              <label className="flex flex-col gap-0.5">
+                <div className="flex justify-between text-[10.5px]">
+                  <span className="text-muted-foreground">{t('settings:appearance.backdropIntensity')}</span>
+                  <span className="font-mono">{Math.round((activeVariant.backdropIntensity ?? 0.55) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={activeVariant.backdropIntensity ?? 0.55}
+                  onChange={(e) => updateVariant({ backdropIntensity: Number(e.target.value) })}
+                  className="w-full accent-[var(--brand)]"
+                />
+              </label>
+            ) : null}
+
+            <div>
+              <div className="mb-1 text-[10.5px] text-muted-foreground">{t('settings:appearance.codeTheme')}</div>
+              <select
+                value={activeVariant.codeTheme ?? (mode === 'dark' ? 'github-dark' : 'github-light')}
+                onChange={(e) => updateVariant({ codeTheme: e.target.value as ShikiThemeId })}
+                className="h-7 w-full rounded border border-border bg-background px-1.5 font-mono text-[10.5px]"
+              >
+                {SHIKI_THEME_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
             </div>
           </>
         )}

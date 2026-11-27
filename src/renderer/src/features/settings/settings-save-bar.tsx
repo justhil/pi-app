@@ -29,24 +29,28 @@ export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
   return (
     <div
       className={cn(
-        'shrink-0 border-t border-border/60 bg-[var(--surface-sidebar)]/95 px-4 py-3 backdrop-blur-sm sm:px-6',
-        'transition-shadow duration-motion-normal',
-        dirty && 'shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]',
+        'settings-save-bar shrink-0 bg-[var(--bg-base)]/95 px-6 py-2.5 backdrop-blur-sm sm:px-9 lg:px-12',
+        'transition-all duration-motion-normal',
+        dirty && 'shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.08)]',
       )}
+      style={{ borderTop: '1px solid var(--shell-hairline)' }}
     >
       <div className={cn('flex flex-wrap items-center justify-between gap-3', wide ? SETTINGS_COLUMN_WIDE : SETTINGS_COLUMN)}>
-        <div className="min-w-0 text-sm text-muted-foreground">
+        <div className="min-w-0 text-[12.5px] text-foreground-secondary">
           {dirty ? (
-            <>
-              <span className="text-amber-700 dark:text-amber-400">{t('common:unsavedChanges')}</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="inline-flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                {t('common:unsavedChanges')}
+              </span>
               {dirtySliceLabels.length > 0 && (
-                <span className="mt-0.5 block truncate text-2xs text-muted-foreground/70">
+                <span className="truncate text-[11.5px] text-foreground-secondary/70">
                   {dirtySliceLabels.join(' · ')}
                 </span>
               )}
-            </>
+            </div>
           ) : (
-            <span>{t('common:allChangesSaved')}</span>
+            <span className="text-foreground-secondary/65">{t('common:allChangesSaved')}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -54,7 +58,7 @@ export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
             type="button"
             disabled={!dirty || saving}
             onClick={() => void discard().then(() => toast.message(t('common:reverted')))}
-            className="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+            className="rounded-lg border border-border/70 px-3 py-1.5 text-[12.5px] text-foreground-secondary transition-colors hover:bg-foreground/[0.05] hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
           >
             {t('common:discard')}
           </button>
@@ -63,12 +67,11 @@ export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
             disabled={!dirty || saving}
             onClick={() => void onSave()}
             className={cn(
-              'rounded-md px-4 py-2 text-sm font-medium transition-all duration-motion-fast',
+              'rounded-lg px-3.5 py-1.5 text-[12.5px] font-medium transition-all duration-motion-fast',
               dirty
-                ? 'bg-primary text-primary-foreground shadow-sm hover:opacity-90'
-                : 'bg-muted text-muted-foreground',
+                ? 'bg-primary text-primary-foreground shadow-xs hover:opacity-90'
+                : 'bg-foreground/[0.06] text-foreground-secondary/70',
               (!dirty || saving) && 'pointer-events-none opacity-50',
-              dirty && !saving && 'ring-2 ring-primary/40 ring-offset-2 ring-offset-[var(--surface-sidebar)]',
             )}
           >
             {saving ? t('common:saving') : t('common:save')}

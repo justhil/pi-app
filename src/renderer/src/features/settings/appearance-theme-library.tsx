@@ -193,7 +193,7 @@ export function AppearanceThemeLibrary({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* 1. Theme Library & Live Studio launcher */}
+      {/* 1. Theme Library */}
       <SettingsSection
         title={t('settings:appearance.libraryTitle')}
         description={t('settings:appearance.libraryDesc')}
@@ -201,9 +201,9 @@ export function AppearanceThemeLibrary({
           <button
             type="button"
             onClick={openLiveStudio}
-            className={cn(btnPrimary, 'h-8 px-3 text-[12px] leading-none')}
+            className={btnCompact}
           >
-            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--brand)]" />
             <span>{t('settings:appearance.openLiveStudio')}</span>
           </button>
         }

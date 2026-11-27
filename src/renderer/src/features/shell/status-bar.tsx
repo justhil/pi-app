@@ -55,6 +55,7 @@ export function StatusBar() {
   const sessions = useUIStore((s) => s.sessions)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const activeSessionFile = useUIStore((s) => s.historySessionFile)
+  const statusBarVisible = useUIStore((s) => s.uiCustomization.shellStatusBarVisible)
   const tasksBySession = useBackgroundTasksStore((s) => s.tasksBySession)
   const activeAdapterBySession = useBackgroundTasksStore((s) => s.activeAdapterBySession)
   const bgTasksLoading = useBackgroundTasksStore((s) => s.loading)
@@ -180,6 +181,8 @@ export function StatusBar() {
   const ratio = status?.total ? rss / status.total : 0
   const level = ratio >= 0.8 ? 'critical' : ratio >= 0.6 ? 'warning' : 'normal'
   const live = counts.working + counts.needsYou + counts.done
+
+  if (!statusBarVisible) return null
 
   return (
     <footer data-pi-slot="shell-status-bar" className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>

@@ -1,6 +1,6 @@
 export type ThemeVariantKey = 'light' | 'dark'
 
-export const THEME_COLOR_KEYS = ['sidebar', 'chat', 'userBubble', 'codeBg', 'border'] as const
+export const THEME_COLOR_KEYS = ['sidebar', 'chat', 'userBubble', 'codeBg', 'border', 'frame'] as const
 export type ThemeColorOverrides = Partial<Record<(typeof THEME_COLOR_KEYS)[number], string>>
 
 export const FRAME_STYLES = ['paper', 'island', 'flat'] as const
@@ -21,7 +21,7 @@ export type ThemeSurfaceMaterial = (typeof SURFACE_MATERIALS)[number]
 export const WINDOW_MATERIALS = ['none', 'mica', 'acrylic', 'tabbed'] as const
 export type ThemeWindowMaterial = (typeof WINDOW_MATERIALS)[number]
 
-export const BACKDROP_PRESETS = ['none', 'ambient', 'dots', 'grid', 'grain'] as const
+export const BACKDROP_PRESETS = ['none', 'ambient', 'aurora', 'mesh', 'dots', 'grid', 'grain'] as const
 export type ThemeBackdropPreset = (typeof BACKDROP_PRESETS)[number]
 
 export const SHIKI_THEME_IDS = [

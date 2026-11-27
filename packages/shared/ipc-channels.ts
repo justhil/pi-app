@@ -80,6 +80,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:browser.downloads.openDir',
   'ipc:browser.agent.abort',
   'ipc:browser.viewBounds',
+  'ipc:canvas.toolResponse',
   'ipc:capabilities.catalog',
   'ipc:clipboard.readTempImage',
   'ipc:clipboard.writeTempImage',

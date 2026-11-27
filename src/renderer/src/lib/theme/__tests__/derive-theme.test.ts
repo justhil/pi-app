@@ -84,6 +84,18 @@ describe('custom theme derivation', () => {
       '--muted': { value: '0 0% 92.5%', format: 'hsl-triplet' },
       '--muted-foreground': { value: '0 0% 26.3%', format: 'hsl-triplet' },
       '--ring': { value: '204.1 100% 40%', format: 'hsl-triplet' },
+      '--surface-frame': { value: '#f0f0f0b8', format: 'hex' },
     })
+  })
+
+  it('derives --surface-frame override and --shell-hairline cleanly', () => {
+    const vars = Object.fromEntries(
+      deriveThemeVariables({
+        ...CODEX_DARK,
+        colors: { frame: '#111215', border: '#2a2d34' },
+      }).map(({ name, value }) => [name, value]),
+    )
+    expect(vars['--surface-frame']).toBe('#111215')
+    expect(vars['--shell-hairline']).toBe('#2a2d3485')
   })
 })

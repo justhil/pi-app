@@ -12,6 +12,7 @@ import {
 } from './worker-background-tasks.js'
 import { handleReloadModelRouters } from './worker-model-routers.js'
 import { handleBrowserToolResponse } from './worker-browser-tools.js'
+import { handleCanvasToolResponse } from './worker-canvas-tools.js'
 
 const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) => Promise<void>> = {
   'init': Turn.handleInit,
@@ -32,6 +33,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'killBackgroundTask': handleKillBackgroundTask,
   'reloadModelRouters': handleReloadModelRouters,
   'browser-tool-response': handleBrowserToolResponse,
+  'canvas-tool-response': handleCanvasToolResponse,
   'newSession': Session.handleNewsession,
   'listSessions': Session.handleListsessions,
   'loadSession': Session.handleLoadsession,

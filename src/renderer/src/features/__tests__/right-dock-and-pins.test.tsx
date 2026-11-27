@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computeDockSlots, resolveVisibleDockPanels, useRightDockStore } from '@renderer/stores/right-dock-store'
+import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { RightDock } from '@renderer/features/shell/right-dock'
+import { CORE_RIGHT_PANEL_CATALOG } from '@shared/right-panels'
 import { isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
 import { buildBrowserToolSummary } from '@renderer/features/timeline/browser-tool-preview'
 
@@ -11,8 +15,9 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 }))
 
 afterEach(() => {
-  useRightDockStore.setState({ bottomTabIds: [], topActive: 'files', bottomActive: null, splitRatio: 0.5 })
-  useUIStore.setState({ pinnedSessions: [], activePanel: 'files' })
+  cleanup()
+  useRightDockStore.setState({ openTabIds: [], bottomTabIds: [], topActive: '', bottomActive: null, launchpadOpen: false, splitRatio: 0.5 })
+  useUIStore.setState({ pinnedSessions: [], activePanel: 'files', rightPanelCollapsed: true })
 })
 
 describe('Decoupled RightDock, Pinned Sessions & Browser Tool Summaries', () => {
@@ -38,6 +43,83 @@ describe('Decoupled RightDock, Pinned Sessions & Browser Tool Summaries', () => 
     // Merge back to clean single pane
     useRightDockStore.getState().mergeToSingle()
     expect(useRightDockStore.getState().bottomTabIds).toEqual([])
+  })
+
+  it('opens tabs on demand, closes tabs via middle-click, and auto-collapses when the last tab closes', () => {
+    useUIStore.setState({ rightPanelCollapsed: false, activePanel: 'canvas' })
+    useRightDockStore.getState().openTab('canvas')
+    useRightDockStore.getState().openTab('files')
+    expect(useRightDockStore.getState().openTabIds).toEqual(['canvas', 'files'])
+
+    const panels = [
+      { key: 'canvas', label: 'Canvas' },
+      { key: 'files', label: 'Files' },
+      { key: 'browser', label: 'Browser' },
+    ]
+    render(
+      <RightDock
+        panels={panels}
+        catalog={CORE_RIGHT_PANEL_CATALOG}
+        rightPanelHidden={false}
+        navSuppressed={false}
+      />,
+    )
+
+    // Only opened tabs appear in the tab bar — Browser is NOT pre-stuffed in.
+    expect(screen.getByRole('tab', { name: 'Canvas' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Files' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Browser' })).not.toBeInTheDocument()
+
+    // Middle-click closes Files tab cleanly and falls back to Canvas.
+    fireEvent(
+      screen.getByRole('tab', { name: 'Files' }),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    )
+    expect(useRightDockStore.getState().openTabIds).toEqual(['canvas'])
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(false)
+
+    // Middle-click closes the last tab (Canvas) and auto-collapses the right panel.
+    fireEvent(
+      screen.getByRole('tab', { name: 'Canvas' }),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    )
+    expect(useRightDockStore.getState().openTabIds).toEqual([])
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(true)
+  })
+
+  it('shows Codex-style new-tab launchpad when opened with no active tabs and launches panels on click', () => {
+    useUIStore.setState({ rightPanelCollapsed: false, activePanel: 'files' })
+    useRightDockStore.setState({ openTabIds: [], bottomTabIds: [], topActive: '', bottomActive: null })
+
+    const panels = [
+      { key: 'canvas', label: 'Canvas' },
+      { key: 'files', label: 'Files' },
+      { key: 'browser', label: 'Browser' },
+      { key: 'review', label: 'Review' },
+    ]
+    render(
+      <RightDock
+        panels={panels}
+        catalog={CORE_RIGHT_PANEL_CATALOG}
+        rightPanelHidden={false}
+        navSuppressed={false}
+      />,
+    )
+
+    expect(screen.getByTestId('right-dock-new-tab-pill')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search files, panels, or enter URL')).toBeInTheDocument()
+
+    // Clicking a launchpad card opens that panel as a tab immediately.
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas' }))
+    expect(useRightDockStore.getState().openTabIds).toEqual(['canvas'])
+    expect(screen.getByRole('tab', { name: 'Canvas' })).toBeInTheDocument()
+
+    // Opening the new-tab launchpad while Canvas is open, then toggling Canvas from the rail, returns to Canvas instead of collapsing.
+    fireEvent.click(screen.getByTestId('right-dock-open-tab-btn'))
+    expect(useRightDockStore.getState().launchpadOpen).toBe(true)
+    usePanelIntentStore.getState().toggleRightPanelTab('canvas', true)
+    expect(useRightDockStore.getState().launchpadOpen).toBe(false)
+    expect(useUIStore.getState().rightPanelCollapsed).toBe(false)
   })
 
   it('pins and unpins sessions case/slash-insensitively', () => {

@@ -181,7 +181,8 @@ export function SidebarActiveSessionsDrawer() {
     <section
       data-testid="sidebar-active-sessions-drawer"
       aria-label={t('common:sidebar.activeDrawer.title')}
-      className="shrink-0 border-t border-border/50 bg-[var(--surface-sidebar)]"
+      className="shrink-0 bg-[var(--surface-sidebar)]"
+      style={{ borderTop: '1px solid var(--shell-hairline)' }}
     >
       <button
         type="button"

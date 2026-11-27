@@ -248,6 +248,22 @@ export function attachWorkerHandlers(
         .catch(() => undefined)
     }
 
+    if (data.type === 'canvas-tool-request') {
+      void import('./canvas/canvas-tool-bridge')
+        .then(({ handleCanvasToolRequest }) =>
+          handleCanvasToolRequest(data, slot, (message) => {
+            if (slot.worker === transport) transport.postMessage(message)
+          }),
+        )
+        .catch((error) => safeWrite(`[WorkerManager] canvas tool failed: ${String(error)}`))
+    }
+
+    if (data.type === 'canvas-tool-cancel') {
+      void import('./canvas/canvas-tool-bridge')
+        .then(({ cancelCanvasToolRequest }) => cancelCanvasToolRequest(String(data.callId ?? '')))
+        .catch(() => undefined)
+    }
+
     if (data.type === 'init-done' && slot.initResolver) {
       slot.sdkFallback = !!data.sdkFallback
       if (slot.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')

@@ -24,6 +24,7 @@ import { registerPiSdkHandlers } from './ipc/handlers/pi-sdk'
 import { registerWslHandlers } from './ipc/handlers/wsl'
 import { registerDesktopChromeHandlers } from './ipc/handlers/desktop-chrome'
 import { registerBrowserHandlers } from './ipc/handlers/browser'
+import { registerCanvasHandlers } from './ipc/handlers/canvas'
 import { registerMcpHandlers } from './ipc/handlers/mcp'
 import { registerModelRouterHandlers } from './ipc/handlers/model-routers'
 import { registerRemoteHandlers } from './ipc/handlers/remote'
@@ -60,6 +61,7 @@ export function registerAllHandlers(): void {
   registerWslHandlers()
   registerDesktopChromeHandlers()
   registerBrowserHandlers()
+  registerCanvasHandlers()
   registerRemoteHandlers()
   registerLinkHandlers()
 }

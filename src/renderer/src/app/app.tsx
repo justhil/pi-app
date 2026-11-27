@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { hydrateBackgroundFromSettings } from '@renderer/lib/theme/background-layer'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
-import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
+import { Sidebar, RightPanel } from '@renderer/components/ui/sidebar'
 import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
 import { SidebarActiveSessionsDrawer } from '@renderer/features/workspace/sidebar-active-sessions-drawer'
-import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
 import { TimelineScrubber } from '@renderer/features/timeline/timeline-scrubber'
@@ -15,6 +15,8 @@ import { Composer } from '@renderer/features/composer/composer'
 
 import { TopBar } from '@renderer/components/app/top-bar'
 import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
+import { LeftActivityRail } from '@renderer/components/app/left-activity-rail'
+import { MainChatHeader } from '@renderer/components/app/main-chat-header'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '@renderer/lib/ipc-client'
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
@@ -26,15 +28,13 @@ import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-work
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
-import { FolderGit2, GitFork, Globe, Settings as SettingsIcon } from '@renderer/components/icons'
-import { useBrowserStore } from '@renderer/features/browser/browser-store'
+import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
-import { cn } from '@renderer/lib/utils'
-import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
+import { buildAllRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 import { RightDock } from '@renderer/features/shell/right-dock'
-import { isPanelVisibleInRightDock, useRightDockStore } from '@renderer/stores/right-dock-store'
+import { useCanvasEvents } from '@renderer/features/canvas/use-canvas-events'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
 import {
   normalizeTimelineMaxAutoExpandedTools,
@@ -76,6 +76,21 @@ import { useBrowserHelpAttention } from '@renderer/features/browser/use-help-att
 import { HelpBar } from '@renderer/features/browser/help-bar'
 import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
 import type { ForkSource } from '@renderer/lib/session-fork'
+
+function countUnifiedDiffLines(raw?: string, stagedRaw?: string): { additions: number; deletions: number } {
+  let additions = 0
+  let deletions = 0
+  for (const chunk of [raw, stagedRaw]) {
+    if (!chunk) continue
+    const lines = chunk.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.startsWith('+') && !line.startsWith('+++')) additions++
+      else if (line.startsWith('-') && !line.startsWith('---')) deletions++
+    }
+  }
+  return { additions, deletions }
+}
 
 type View = 'main' | 'settings'
 
@@ -120,13 +135,8 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [studioOpen, setStudioOpen] = useState(false)
   const [studioSeedTheme, setStudioSeedTheme] = useState<import('@shared/custom-theme').CustomTheme | undefined>(undefined)
-  const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
-  const dockBottomTabs = useRightDockStore((s) => s.bottomTabIds)
-  const dockTopActive = useRightDockStore((s) => s.topActive)
-  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
-  const browserTabCount = useBrowserStore((s) => s.order.length)
-  const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
+  useCanvasEvents()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
@@ -145,7 +155,6 @@ export default function App() {
   }, [])
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
-  const setActivePanel = useUIStore((s) => s.setActivePanel)
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
   const applyRightPanelRuntime = useUIStore((s) => s.applyRightPanelRuntime)
@@ -389,8 +398,10 @@ export default function App() {
   }, [pendingExtensionConfig])
 
   const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const sessions = useUIStore((s) => s.sessions)
   const timelineItemCount = useUIStore((s) => s.timelineItems.length)
   const historyLoading = useUIStore((s) => s.historyLoading)
+  const [sidebarReloading, setSidebarReloading] = useState(false)
 
   const handleOpenProject = async () => {
     if (!window.piDesktop) {
@@ -414,18 +425,45 @@ export default function App() {
     workspace: currentWorkspace,
     worktreeChangeSignal: fileChanges,
   })
-  const panelPrefs =
-    gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
   const navSuppressed = usePanelNavigationSuppression(`${currentWorkspace || ''}::${historySessionFile || ''}`)
-  const PANELS = buildRightPanelTabs(rightPanelCatalog, panelPrefs, t, rightPanelOrder)
-  // Subscribe to dock slices so sidebar footer highlights update immediately on split/tab switch
-  void dockBottomTabs
-  void dockTopActive
-  void dockBottomActive
+  const PANELS = buildAllRightPanelTabs(
+    rightPanelCatalog,
+    t,
+    rightPanelOrder,
+    gitData?.isRepo === false ? ['review'] : undefined,
+  )
 
   const isHomeMode =
     !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
+
+  const activeSessionTitle = useMemo(() => {
+    if (showHome || !currentSessionId) return undefined
+    const matched = sessions.find((s) => s.sessionId === currentSessionId)
+    return matched?.title?.trim() || undefined
+  }, [showHome, currentSessionId, sessions])
+
+  const gitDiffStat = useMemo(() => {
+    if (!gitData || gitData.isRepo === false) return null
+    const { additions, deletions } = countUnifiedDiffLines(gitData.raw, gitData.stagedRaw)
+    return {
+      files: gitData.files.length,
+      additions,
+      deletions,
+    }
+  }, [gitData])
+
+  const handleReloadAll = async () => {
+    if (sidebarReloading) return
+    setSidebarReloading(true)
+    try {
+      const r = await reloadCurrentSessionData()
+      if (r.ok) toast.success(t('common:sessionReload.success'))
+      else toast.error(r.error || t('common:sessionReload.failed'))
+    } finally {
+      setSidebarReloading(false)
+    }
+  }
 
   const handleSelectProject = async (path: string) => {
     await activateWorkspace(path, { preferHome: true })
@@ -449,7 +487,7 @@ export default function App() {
       <ErrorBoundary>
         <div
           className="app-viewport flex flex-col overflow-hidden text-foreground"
-          style={{ background: 'var(--surface-sidebar)' }}
+          style={{ background: 'var(--surface-frame)' }}
         >
           <TopBar
             onBack={() => {
@@ -478,144 +516,98 @@ export default function App() {
     <ErrorBoundary>
       <div
         className="app-viewport flex flex-col overflow-hidden text-foreground"
-        style={{ background: 'var(--surface-sidebar)' }}
+        style={{ background: 'var(--surface-frame)' }}
       >
-        <ImmersiveChrome projectName={projectName} />
-        <MainLayoutShell
-          left={
-            <Sidebar>
-              <SidebarContent>
-                <ProjectSidebar
-                  onOpenProject={handleOpenProject}
-                  openProjectLabel={t('sidebar.openProject')}
-                />
-              </SidebarContent>
-              <SidebarActiveSessionsDrawer />
-              <div className="flex h-10 shrink-0 items-center gap-0.5 border-t border-border/35 px-2">
-                <button
-                  type="button"
-                  onClick={() => setView('settings')}
-                  className="nav-row flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[12px] font-medium text-foreground-secondary transition-colors hover:text-foreground"
-                >
-                  <SettingsIcon className="h-[15px] w-[15px] shrink-0 opacity-80" strokeWidth={1.65} />
-                  <span className="sidebar-label-fade truncate">{t('sidebar.settings')}</span>
-                </button>
-                {currentWorkspace && !ephemeralSandboxDraft ? (
-                  <>
-                    <button
-                      type="button"
-                      title={t('common:panel.worktrees')}
-                      aria-label={t('common:panel.worktrees')}
-                      aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('worktrees')}
-                      onClick={() =>
-                        usePanelIntentStore.getState().toggleRightPanelTab('worktrees', !rightPanelHidden)
-                      }
-                      className={cn(
-                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                        !rightPanelHidden &&
-                          isPanelVisibleInRightDock('worktrees') &&
-                          'bg-[var(--bg-active)] text-foreground',
-                      )}
-                    >
-                      <FolderGit2 className="h-[15px] w-[15px]" strokeWidth={1.65} />
-                    </button>
-                    <button
-                      type="button"
-                      title={t('common:panel.github')}
-                      aria-label={t('common:panel.github')}
-                      aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('github')}
-                      onClick={() =>
-                        usePanelIntentStore.getState().toggleRightPanelTab('github', !rightPanelHidden)
-                      }
-                      className={cn(
-                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                        !rightPanelHidden &&
-                          isPanelVisibleInRightDock('github') &&
-                          'bg-[var(--bg-active)] text-foreground',
-                      )}
-                    >
-                      <GitFork className="h-[15px] w-[15px]" strokeWidth={1.65} />
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  data-pi-slot="sidebar-browser-toggle"
-                  title={
-                    browserTabCount > 0
-                      ? `${t('browser:stage.toggleTooltip')} (${browserTabCount})`
-                      : t('browser:stage.toggleTooltip')
-                  }
-                  aria-label={t('browser:stage.toggleTooltip')}
-                  aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('browser')}
-                  onClick={() =>
-                    usePanelIntentStore.getState().toggleRightPanelTab('browser', !rightPanelHidden)
-                  }
-                  className={cn(
-                    'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                    !rightPanelHidden &&
-                      isPanelVisibleInRightDock('browser') &&
-                      'bg-[var(--bg-active)] text-foreground',
-                  )}
-                >
-                  <Globe className="h-[15px] w-[15px]" strokeWidth={1.65} />
-                  {browserTabCount > 0 || browserAgentBusy ? (
-                    <span
-                      className={cn(
-                        'absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--brand)]',
-                        browserAgentBusy && 'animate-pulse',
-                      )}
-                      aria-hidden
-                    />
-                  ) : null}
-                </button>
-              </div>
-            </Sidebar>
-          }
-          center={
-            <SplitView>
-            <MainColumnWithTimelineScroll className="h-full">
-              {showHome ? (
-                <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
-                  <ProjectHomeView
-                    projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
-                    subtitle={
-                      ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined
-                    }
-                    recentProjects={recentProjects}
-                    currentWorkspace={currentWorkspace}
-                    ephemeralSandboxDraft={ephemeralSandboxDraft}
-                    onSelectProject={(p) => void handleSelectProject(p)}
-                    onOpenProject={handleOpenProject}
-                  />
-                </Suspense>
-              ) : (
-                <Timeline />
-              )}
-              <MainColRightPanelToggle />
-              <ComposerDock heroMode={showHome}>
-                {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
-                <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
-                <Composer />
-              </ComposerDock>
-              {!showHome ? <TimelineScrubber /> : null}
-            </MainColumnWithTimelineScroll>
-            </SplitView>
-          }
-          right={
-            <RightPanel>
-              <RightDock
-                panels={PANELS}
-                catalog={rightPanelCatalog}
-                rightPanelHidden={rightPanelHidden}
-                navSuppressed={navSuppressed}
-              />
-            </RightPanel>
-          }
-          bottom={<TerminalDrawer />}
-          bottomOpen={terminalOpen}
-          bottomHeight={terminalHeight}
+        <ImmersiveChrome
+          projectName={projectName}
+          onOpenSettings={() => setView('settings')}
+          onReloadAll={() => void handleReloadAll()}
+          reloading={sidebarReloading}
         />
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <LeftActivityRail
+            onOpenSettings={() => setView('settings')}
+            onReloadAll={() => void handleReloadAll()}
+            reloading={sidebarReloading}
+            hasGitRepo={gitData?.isRepo !== false}
+            diffCount={gitDiffStat?.files ?? 0}
+          />
+          <MainLayoutShell
+            left={
+              <Sidebar>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <ProjectSidebar
+                    onOpenProject={handleOpenProject}
+                    openProjectLabel={t('sidebar.openProject')}
+                  />
+                </div>
+                <SidebarActiveSessionsDrawer />
+              </Sidebar>
+            }
+            center={
+              <SplitView>
+                <MainColumnWithTimelineScroll className="h-full">
+                  <MainChatHeader
+                    projectName={projectName}
+                    sessionTitle={activeSessionTitle}
+                    gitBranch={gitData?.isRepo !== false ? gitData?.branch : undefined}
+                    gitDiffStat={gitDiffStat}
+                    isHome={showHome}
+                    onForkCurrent={
+                      currentSessionId && historySessionFile && currentWorkspace
+                        ? () => {
+                            setForkSource({
+                              sessionFile: historySessionFile,
+                              workspacePath: currentWorkspace,
+                            })
+                            setForkOpen(true)
+                          }
+                        : undefined
+                    }
+                  />
+                  <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    {showHome ? (
+                      <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
+                        <ProjectHomeView
+                          projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
+                          subtitle={
+                            ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined
+                          }
+                          recentProjects={recentProjects}
+                          currentWorkspace={currentWorkspace}
+                          ephemeralSandboxDraft={ephemeralSandboxDraft}
+                          onSelectProject={(p) => void handleSelectProject(p)}
+                          onOpenProject={handleOpenProject}
+                        />
+                      </Suspense>
+                    ) : (
+                      <Timeline />
+                    )}
+                    <ComposerDock heroMode={showHome}>
+                      {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
+                      <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
+                      <Composer />
+                    </ComposerDock>
+                    {!showHome ? <TimelineScrubber /> : null}
+                  </div>
+                </MainColumnWithTimelineScroll>
+              </SplitView>
+            }
+            right={
+              <RightPanel>
+                <RightDock
+                  panels={PANELS}
+                  catalog={rightPanelCatalog}
+                  rightPanelHidden={rightPanelHidden}
+                  navSuppressed={navSuppressed}
+                />
+              </RightPanel>
+            }
+            bottom={<TerminalDrawer />}
+            bottomOpen={terminalOpen}
+            bottomHeight={terminalHeight}
+          />
+        </div>
         <StatusBar />
       </div>
       <AppToaster />
