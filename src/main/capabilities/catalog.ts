@@ -54,11 +54,12 @@ const PROMPTS: Partial<Record<CapabilityId, string>> = {
   'pi-ui': piUiPrompt.replace(/^<!--[\s\S]*?-->\s*/, '').trim(),
   canvas: [
     '# AI Canvas',
-    'The canvas_* tools project persistent visual surfaces onto pi Desktop\'s right-side AI Canvas stage so the user can watch live state alongside the chat.',
-    '- canvas_present({ id, title, kind, payload, focus?, pin? }) creates or replaces a surface. Kinds: "ui-block" (any pi-ui chart/stat-grid/data-table/gantt/diff), "delegation-tree" (live subagent tree or snapshot), "device-stream" (ADB phone screen / media stream with optional overlay markers), "diagram" (mermaid/svg), "html" (sandboxed interactive HTML/JS), "markdown".',
-    '- canvas_update({ id, payloadPatch }) patches an existing surface incrementally (e.g. update progress, push new frameDataUrl or tap markers).',
-    '- canvas_read({ id? }) returns open surfaces and user interaction events (tapped phone coordinates, clicked nodes, form state).',
-    '- canvas_close({ id? | all? }) removes surfaces.',
+    'The canvas_* tools project persistent visual surfaces onto pi Desktop\'s right-side AI Canvas stage (scoped per session unless pinned).',
+    '- canvas_present({ id, title, kind, payload, focus?, pin? }) creates/replaces a surface. Kinds: "ui-block" (pi-ui chart/stat-grid/data-table/gantt/diff), "delegation-tree" (live/snapshot subagent tree), "device-stream" (live ADB screencap/mjpeg/ws-frames + overlay markers), "image" (single/compare slider/gallery), "diagram" (zoomable mermaid/svg with 2x PNG export), "html" (offline HTML or React JSX/TSX + Tailwind + lucide-react sandbox with window.piCanvas.emit & runtime error capture), "markdown".',
+    '- Prefer local filePath + watch:true on html/markdown/diagram/image (and autoStream:true on device-stream) instead of inlining large files or base64 frames.',
+    '- canvas_update({ id, payloadPatch, mergeMode?:"shallow"|"deep", appendMarkers?, clearMarkers? }) patches incrementally.',
+    '- canvas_read({ id?, includeScreenshot? }) inspects surfaces, user interactions, sandbox runtimeErrors, and optionally captures a rendered screenshot for visual self-check.',
+    '- canvas_close({ id? | all? }) closes surfaces.',
   ].join('\n'),
   browser: [
     '# Built-in browser',

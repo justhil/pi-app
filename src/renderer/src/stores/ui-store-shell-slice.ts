@@ -56,6 +56,7 @@ type ShellSlice = Pick<
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
+  | 'setSidebarCollapsed'
   | 'toggleSidebar'
   | 'sidebarActiveSessionsDrawer'
   | 'setSidebarActiveSessionsDrawer'
@@ -78,6 +79,7 @@ type ShellSlice = Pick<
   | 'revealRightPanel'
   | 'filesPreviewChatExpand'
   | 'browserChatExpand'
+  | 'canvasChatExpand'
   | 'browserStageMode'
   | 'browserStageRatio'
   | 'browserStageLastOpenMode'
@@ -105,6 +107,7 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
           ...(panel !== 'browser' && panel !== 'canvas' && state.browserStageMode !== 'closed'
             ? { browserStageMode: 'closed' as const, browserChatExpand: false }
             : {}),
+          ...(panel !== 'canvas' && state.canvasChatExpand ? { canvasChatExpand: false } : {}),
         }
       }),
     rightPanelPrefs: defaultCoreRightPanelPrefs(),
@@ -164,6 +167,7 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,
+    setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     sidebarActiveSessionsDrawer: true,
     setSidebarActiveSessionsDrawer: (on) => set({ sidebarActiveSessionsDrawer: on }),
@@ -250,9 +254,10 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
         })
         return nextRightPanelToggle({ hidden, windowWidth })
       }),
-    revealRightPanel: () => set({ ...revealRightPanelPatch(), browserStageMode: 'closed', browserChatExpand: false }),
+    revealRightPanel: () => set({ ...revealRightPanelPatch(), browserStageMode: 'closed', browserChatExpand: false, canvasChatExpand: false }),
     filesPreviewChatExpand: false,
     browserChatExpand: false,
+    canvasChatExpand: false,
     browserStageMode: 'closed',
     browserStageRatio: 0.5,
     browserStageLastOpenMode: 'split-50',
@@ -268,6 +273,7 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
           browserStageLastOpenMode: mode,
           browserStageRatio: nextRatio,
           browserChatExpand: mode === 'full',
+          canvasChatExpand: false,
           filesPreviewChatExpand: false,
           rightPanelCollapsed: true,
         }

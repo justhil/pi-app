@@ -1,7 +1,9 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
-import { Check, Copy } from '@renderer/components/icons'
+import { Check, CloudDownload, Copy } from '@renderer/components/icons'
+import { downloadSvgAsPng } from '@renderer/features/canvas/svg-png-export'
 import type { MermaidResult, MermaidTheme } from './mermaid-render'
 
 const MAX_CACHE = 60
@@ -51,6 +53,8 @@ export function MermaidBlock({ code, streaming }: { code: string; streaming: boo
   const [result, setResult] = useState<MermaidResult | undefined>(() => resultCache.get(key))
   const [showSource, setShowSource] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [exportingPng, setExportingPng] = useState(false)
+  const diagramRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (streaming) return
@@ -79,6 +83,25 @@ export function MermaidBlock({ code, streaming }: { code: string; streaming: boo
     })
   }
 
+  const exportPng = async () => {
+    if (!svg || exportingPng) return
+    setExportingPng(true)
+    try {
+      const svgEl = diagramRef.current?.querySelector('svg') as SVGSVGElement | null
+      await downloadSvgAsPng({
+        svgElement: svgEl,
+        svgMarkup: svg,
+        filename: 'mermaid-diagram-2x.png',
+        scale: 2,
+      })
+      toast.success('已导出高清 PNG (2x)')
+    } catch {
+      toast.error('PNG 导出失败')
+    } finally {
+      setExportingPng(false)
+    }
+  }
+
   const svg = !streaming && result && 'svg' in result ? result.svg : undefined
   const error = !streaming && result && 'error' in result ? result.error : undefined
   const pending = !streaming && !result
@@ -97,13 +120,26 @@ export function MermaidBlock({ code, streaming }: { code: string; streaming: boo
         <span className="font-mono text-[10px] uppercase tracking-wide text-foreground-secondary/55">mermaid</span>
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
           {svg && (
-            <button
-              type="button"
-              onClick={() => setShowSource((value) => !value)}
-              className="rounded px-1.5 text-[11px] leading-5 text-foreground-secondary/60 hover:text-foreground"
-            >
-              {showSource ? t('timeline:mermaidShowDiagram') : t('timeline:mermaidShowSource')}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void exportPng()}
+                disabled={exportingPng}
+                aria-label="导出高清 PNG"
+                title="导出高清 PNG (2x)"
+                className="flex h-5 items-center gap-0.5 rounded px-1 text-[10.5px] leading-5 text-foreground-secondary/60 hover:text-foreground disabled:opacity-45"
+              >
+                <CloudDownload className="h-3 w-3" />
+                <span>PNG</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSource((value) => !value)}
+                className="rounded px-1.5 text-[11px] leading-5 text-foreground-secondary/60 hover:text-foreground"
+              >
+                {showSource ? t('timeline:mermaidShowDiagram') : t('timeline:mermaidShowSource')}
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -118,6 +154,7 @@ export function MermaidBlock({ code, streaming }: { code: string; streaming: boo
       </div>
       {svg && !showSource && (
         <div
+          ref={diagramRef}
           data-independent-scroll
           className="mermaid-diagram overflow-x-auto overscroll-contain px-3 py-3 [&_svg]:mx-auto [&_svg]:block [&_svg]:h-auto [&_svg]:!max-w-full"
           dangerouslySetInnerHTML={{ __html: svg }}

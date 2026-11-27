@@ -7,7 +7,7 @@ import { useRightDockStore } from '@renderer/stores/right-dock-store'
 import { buildAllRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { useBrowserStore } from '@renderer/features/browser/browser-store'
-import { useCanvasStore } from '@renderer/features/canvas/canvas-store'
+import { selectVisibleSurfaces, useCanvasStore } from '@renderer/features/canvas/canvas-store'
 import { useTranslation } from 'react-i18next'
 
 export function RightPanelCollapsedRail() {
@@ -23,7 +23,9 @@ export function RightPanelCollapsedRail() {
   const closeTab = useRightDockStore((s) => s.closeTab)
   const browserTabCount = useBrowserStore((s) => s.order.length)
   const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
-  const canvasSurfaceCount = useCanvasStore((s) => s.surfaces.length)
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const canvasSurfaces = useCanvasStore((s) => s.surfaces)
+  const canvasSurfaceCount = selectVisibleSurfaces(canvasSurfaces, historySessionFile, false).length
 
   const attentionAlert = Object.values(attention).some(
     (value) => value === 'needs-you' || value === 'done',

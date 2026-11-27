@@ -18,7 +18,7 @@ import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { isPanelVisibleInRightDock, useRightDockStore } from '@renderer/stores/right-dock-store'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { useBrowserStore } from '@renderer/features/browser/browser-store'
-import { useCanvasStore } from '@renderer/features/canvas/canvas-store'
+import { selectVisibleSurfaces, useCanvasStore } from '@renderer/features/canvas/canvas-store'
 import { terminalActions, useTerminalStore } from '@renderer/features/terminal/terminal-store'
 
 interface LeftActivityRailProps {
@@ -46,7 +46,12 @@ export function LeftActivityRail({
   const activePanel = useUIStore((s) => s.activePanel)
   const terminalOpen = useTerminalStore((s) => s.open)
   const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
-  const canvasHasAi = useCanvasStore((s) => s.surfaces.some((item) => item.source === 'ai'))
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const canvasSurfaces = useCanvasStore((s) => s.surfaces)
+  const canvasHasAi = useMemo(
+    () => selectVisibleSurfaces(canvasSurfaces, historySessionFile, false).some((item) => item.source === 'ai'),
+    [canvasSurfaces, historySessionFile],
+  )
   const railVisible = useUIStore((s) => s.uiCustomization.shellActivityRailVisible)
   const railStyle = useUIStore((s) => s.uiCustomization.shellActivityRailStyle)
 

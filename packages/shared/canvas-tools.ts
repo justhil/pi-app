@@ -1,7 +1,7 @@
 export const CANVAS_NAMESPACE = {
   name: 'canvas',
   description:
-    'pi Desktop right-side AI Canvas: project interactive ui-blocks, live delegation trees, ADB device screens, mermaid/svg diagrams, and HTML sandboxes',
+    'pi Desktop right-side AI Canvas: project interactive ui-blocks, live delegation trees, ADB device screens, images/comparisons, mermaid/svg diagrams, markdown docs, and HTML sandboxes',
 }
 
 export interface CanvasToolDef {
@@ -16,7 +16,7 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
     name: 'canvas_present',
     label: 'Present on Canvas',
     description:
-      'Project or replace an interactive surface on the pi Desktop right-side AI Canvas (charts/tables via ui-block, live delegation-tree, ADB device-stream, mermaid/svg diagram, sandboxed html, or markdown). Automatically reveals the Canvas when focus is true.',
+      'Project or replace an interactive surface on the pi Desktop right-side AI Canvas (ui-block, delegation-tree, device-stream, image, html, diagram, or markdown). Supports local filePath with optional watch hot-reload to avoid sending large content inline.',
     parameters: {
       type: 'object',
       properties: {
@@ -34,17 +34,17 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
         },
         kind: {
           type: 'string',
-          enum: ['ui-block', 'delegation-tree', 'device-stream', 'html', 'diagram', 'markdown'],
+          enum: ['ui-block', 'delegation-tree', 'device-stream', 'image', 'html', 'diagram', 'markdown'],
           description: 'Surface renderer type.',
         },
         payload: {
           type: 'object',
           description:
-            'Kind-specific payload: ui-block {component, props}, delegation-tree {source: "live"|"snapshot", nodes?}, device-stream {deviceName, serial, platform, resolution, streamMode, frameDataUrl?, markers?}, html {html, css?}, diagram {format: "mermaid"|"svg", code}, markdown {markdown}.',
+            'Kind-specific payload: ui-block {component, props}; delegation-tree {source:"live"|"snapshot", nodes?}; device-stream {deviceName, serial, platform, resolution, streamMode:"adb-screencap"|"mjpeg"|"ws-frames"|"manual", autoStream?, streamUrl?, frameDataUrl?, controlMode?, markers?}; image {mode?:"single"|"compare"|"gallery", src?, filePath?, compareFilePath?, images?, watch?}; html {mode?:"html"|"react", html?, code?, css?, files?, tailwind?, filePath?, watch?, viewport?} (offline JSX/TSX + Tailwind + lucide-react supported); diagram {format:"mermaid"|"svg", code?, filePath?, watch?}; markdown {markdown?, filePath?, watch?}.',
         },
         focus: {
           type: 'boolean',
-          description: 'Bring this surface to focus and reveal the Canvas stage (default true).',
+          description: 'Bring this surface to focus and reveal the Canvas stage in the active session (default true).',
         },
         pin: {
           type: 'boolean',
@@ -58,7 +58,7 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
     name: 'canvas_update',
     label: 'Update Canvas Surface',
     description:
-      'Incrementally patch an existing Canvas surface (merge payload fields, update markers on a device screen, or change title/subtitle) without recreating it.',
+      'Incrementally patch an existing Canvas surface (shallow or deep merge payloadPatch, append/clear device markers, or change title/subtitle) without recreating it.',
     parameters: {
       type: 'object',
       properties: {
@@ -67,7 +67,20 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
         subtitle: { type: 'string' },
         payloadPatch: {
           type: 'object',
-          description: 'Shallow merge patch applied onto the surface payload.',
+          description: 'Patch applied onto the surface payload.',
+        },
+        mergeMode: {
+          type: 'string',
+          enum: ['shallow', 'deep'],
+          description: 'Merge strategy for payloadPatch (default shallow; use deep for nested props).',
+        },
+        appendMarkers: {
+          type: 'array',
+          description: 'For device-stream surfaces: upsert overlay markers by id without resending all markers.',
+        },
+        clearMarkers: {
+          type: 'boolean',
+          description: 'For device-stream surfaces: clear existing markers before applying patch/appendMarkers.',
         },
         focus: { type: 'boolean' },
       },
@@ -78,13 +91,21 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
     name: 'canvas_read',
     label: 'Read Canvas State',
     description:
-      'Inspect open surfaces on the AI Canvas and any user interaction state (such as tapped device coordinates, selected delegation node, or sandboxed HTML events).',
+      'Inspect open surfaces in the current session, user interaction state (tapped/swiped coordinates, selected node, sandbox HTML events/runtimeErrors), and optionally capture a visual screenshot for self-check.',
     parameters: {
       type: 'object',
       properties: {
         id: {
           type: 'string',
-          description: 'Optional surface id; omit to list all surfaces in the current session.',
+          description: 'Optional surface id; omit to list surfaces visible in the current session.',
+        },
+        includeScreenshot: {
+          type: 'boolean',
+          description: 'When true, capture a compressed screenshot of the target (or active) visible surface and return it as an image for visual verification.',
+        },
+        allSessions: {
+          type: 'boolean',
+          description: 'Include surfaces belonging to other sessions (default false).',
         },
       },
     },
@@ -92,12 +113,12 @@ export const CANVAS_TOOL_DEFS: readonly CanvasToolDef[] = [
   {
     name: 'canvas_close',
     label: 'Close Canvas Surface',
-    description: 'Close one surface by id, or clear all non-pinned surfaces when all is true.',
+    description: 'Close one surface by id, or clear all non-pinned surfaces in the current session when all is true.',
     parameters: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Surface id to remove.' },
-        all: { type: 'boolean', description: 'Remove all non-pinned surfaces.' },
+        all: { type: 'boolean', description: 'Remove all non-pinned surfaces in the current session.' },
       },
     },
   },
