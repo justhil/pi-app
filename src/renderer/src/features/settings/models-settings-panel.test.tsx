@@ -23,6 +23,7 @@ vi.mock('sonner', () => ({
 
 // Defaults & thinking bindings have their own slice and test (model-defaults-section.test).
 vi.mock('./model-defaults-section', () => ({ ModelDefaultsSection: () => null }))
+vi.mock('./google-ai-plan-section', () => ({ GoogleAiPlanSection: () => null }))
 
 vi.mock('./models-provider-card', () => ({
   ModelsProviderCard: ({

@@ -9,6 +9,7 @@ const settingsDir = join(root, 'src/renderer/src/features/settings')
 const modelSettingsFiles = [
   'models-settings-panel.tsx',
   'models-sdk-provider-section.tsx',
+  'google-ai-plan-section.tsx',
   'models-provider-card.tsx',
   'model-catalog-picker.tsx',
   'model-entry-editor.tsx',

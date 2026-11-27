@@ -310,6 +310,46 @@ export interface AppDownloadUpdateResponse {
   error?: string
 }
 
+// ── Google AI Ultra plan (upstream PR #12614 on-demand extension) ──
+export type GoogleAiPlanLoginPhase =
+  | 'idle'
+  | 'awaiting_callback'
+  | 'exchanging'
+  | 'succeeded'
+  | 'failed'
+
+export interface GoogleAiPlanLoginSnapshot {
+  active: boolean
+  phase: GoogleAiPlanLoginPhase
+  authUrl?: string
+  redirectUri?: string
+  error?: string
+  startedAt?: number
+}
+
+export interface GoogleAiPlanStatus {
+  prNumber: number
+  prUrl: string
+  wslUnsupported: boolean
+  builtinInSdk: boolean
+  autoRemovedForBuiltinSdk: boolean
+  installed: boolean
+  managedByApp: boolean
+  extensionDir: string
+  installedSha: string | null
+  fetchedAt: number | null
+  signedIn: boolean
+  expiresAt: number | null
+  models: Array<{ id: string; name: string }>
+  login: GoogleAiPlanLoginSnapshot
+}
+
+export interface GoogleAiPlanActionResponse {
+  ok: boolean
+  status: GoogleAiPlanStatus
+  error?: string
+}
+
 // ── Events ──
 export interface EventsSubscribeRequest { channels?: string[] }
 export interface EventsSubscribeResponse { subscriptionId: string }
@@ -348,6 +388,13 @@ export interface IpcMethodMap {
   'pi.models.set': { request: PiModelsSetRequest; response: PiModelsSetResponse }
   'pi.models.fetch': { request: PiModelsFetchRequest; response: PiModelsFetchResponse }
   'pi.models.catalog': { request: { force?: boolean }; response: UpstreamCatalogSnapshot }
+  'googleAiPlan.status': { request: Record<string, never>; response: GoogleAiPlanStatus }
+  'googleAiPlan.syncExtension': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.removeExtension': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.loginStart': { request: { autoSync?: boolean }; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.loginSubmitUrl': { request: { callbackUrl: string }; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.loginCancel': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
+  'googleAiPlan.logout': { request: Record<string, never>; response: GoogleAiPlanActionResponse }
   'thinkingLevel.set': { request: ThinkingLevelSetRequest; response: ThinkingLevelSetResponse }
   'commands.list': { request: CommandsListRequest; response: CommandsListResponse }
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }

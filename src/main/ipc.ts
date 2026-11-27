@@ -29,6 +29,7 @@ import { registerMcpHandlers } from './ipc/handlers/mcp'
 import { registerModelRouterHandlers } from './ipc/handlers/model-routers'
 import { registerRemoteHandlers } from './ipc/handlers/remote'
 import { registerLinkHandlers } from './ipc/handlers/links'
+import { registerGoogleAiPlanHandlers } from './ipc/handlers/google-ai-plan'
 
 export { registerHandler, sendEvent } from './ipc/registry'
 
@@ -64,4 +65,5 @@ export function registerAllHandlers(): void {
   registerCanvasHandlers()
   registerRemoteHandlers()
   registerLinkHandlers()
+  registerGoogleAiPlanHandlers()
 }

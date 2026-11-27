@@ -27,6 +27,7 @@ import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { flattenRawPiSettings } from '../../../worker/pi-settings-snapshot'
+import { cleanupObsoleteGoogleAiPlanExtension } from '../../google-ai-plan/service'
 
 function sendSdkRuntimeChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -153,6 +154,10 @@ export function registerPiSdkHandlers(): void {
         rollbackSelection: switchTo,
       })
       finalizeVersionInstall(installed.userDir, true)
+      if (cleanupObsoleteGoogleAiPlanExtension().removed && workerManager.isRunning) {
+        await workerManager.reloadResources().catch(() => {})
+        await workerManager.reloadModels().catch(() => {})
+      }
       if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
       sendSdkRuntimeChanged()
       return { ok: true, active }
@@ -181,6 +186,10 @@ export function registerPiSdkHandlers(): void {
         verifySelection: verifySelectedSdk,
         rollbackSelection: switchTo,
       })
+      if (cleanupObsoleteGoogleAiPlanExtension().removed && workerManager.isRunning) {
+        await workerManager.reloadResources().catch(() => {})
+        await workerManager.reloadModels().catch(() => {})
+      }
       sendSdkRuntimeChanged()
       return { ok: true, active }
     } catch (e: unknown) {

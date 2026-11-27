@@ -19,6 +19,7 @@ import {
   resolveAvailableModels,
   resolveCatalogModels,
 } from '../../active-sdk-models'
+import { augmentModelsWithGoogleAiPlan } from '../../google-ai-plan/service'
 
 /**
  * SDK model listing runs in the preview utility process: importing the SDK on the main process
@@ -89,12 +90,11 @@ export function registerModelRuntimeHandlers(): void {
 
     if (scope === 'settings' && workerManager.isRunning) {
       try {
+        const workerSnapshot = (await workerManager.getModelSettingsSnapshot()).filter(
+          (model): model is typeof model & { id: string } => typeof model.id === 'string',
+        )
         return {
-          models: mapRegistry(
-            (await workerManager.getModelSettingsSnapshot()).filter(
-              (model): model is typeof model & { id: string } => typeof model.id === 'string',
-            ),
-          ),
+          models: mapRegistry(augmentModelsWithGoogleAiPlan(workerSnapshot, 'settings')),
         }
       } catch (error) {
         console.error('[IPC] model.list settings worker failed:', error)
@@ -104,7 +104,7 @@ export function registerModelRuntimeHandlers(): void {
     if (scope === 'catalog' || scope === 'settings') {
       const models = await resolveCatalogModels({
         sdk: async () => {
-          const catalog = await listModelsOffThread('catalog')
+          const catalog = augmentModelsWithGoogleAiPlan(await listModelsOffThread('catalog'), scope)
           return scope === 'settings'
             ? mapRegistry(catalog)
             : catalog.map((model) => ({
@@ -116,7 +116,7 @@ export function registerModelRuntimeHandlers(): void {
                 available: true,
               }))
         },
-        catalog: () => catalogFromDisk().models,
+        catalog: () => mapRegistry(augmentModelsWithGoogleAiPlan(catalogFromDisk().models, scope)),
         onSdkError: (error) => console.error('[IPC] model.list catalog failed:', error),
       })
       return { models }
@@ -126,12 +126,15 @@ export function registerModelRuntimeHandlers(): void {
       worker: workerManager.isRunning
         ? async () =>
             mapRegistry(
-              (await workerManager.getModels()).filter(
-                (model): model is typeof model & { id: string } => typeof model.id === 'string',
+              augmentModelsWithGoogleAiPlan(
+                (await workerManager.getModels()).filter(
+                  (model): model is typeof model & { id: string } => typeof model.id === 'string',
+                ),
+                'available',
               ),
             )
         : undefined,
-      sdk: async () => mapRegistry(await listModelsOffThread('available')),
+      sdk: async () => mapRegistry(augmentModelsWithGoogleAiPlan(await listModelsOffThread('available'), 'available')),
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })

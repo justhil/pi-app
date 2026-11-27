@@ -27,6 +27,7 @@ import { ModelsSdkProviderSection } from './models-sdk-provider-section'
 import { ProviderAddDialog } from './provider-add-dialog'
 import { saveModelsConfigDraft } from './save-models-config'
 import { ModelDefaultsSection } from './model-defaults-section'
+import { GoogleAiPlanSection } from './google-ai-plan-section'
 import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 import { cn } from '@renderer/lib/utils'
 
@@ -430,6 +431,8 @@ export function ModelsSettingsPanel() {
       />
 
       <ModelDefaultsSection />
+
+      <GoogleAiPlanSection onChanged={load} />
 
       {(parseError || schemaError || saveError) && (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 whitespace-pre-wrap px-3 py-2 text-sm text-amber-900 dark:text-amber-200">

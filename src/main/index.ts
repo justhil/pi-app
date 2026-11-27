@@ -123,6 +123,16 @@ app.whenReady().then(() => {
     }
   }
   registerAllHandlers()
+  void import('./google-ai-plan/service').then(({ cleanupObsoleteGoogleAiPlanExtension }) => {
+    try {
+      const res = cleanupObsoleteGoogleAiPlanExtension()
+      if (res.removed) {
+        console.log('[google-ai-plan] Auto-removed obsolete preview extension because active SDK includes google-ai-plan natively')
+      }
+    } catch (e) {
+      console.warn('[google-ai-plan] startup cleanup check failed:', e)
+    }
+  })
   void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
     try {
       pruneStaleClipboardImages()
