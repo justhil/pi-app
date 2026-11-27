@@ -73,4 +73,26 @@ describe('SessionTreeOverlay interaction', () => {
     expect(navigateSessionToEntry).toHaveBeenCalledWith('u1')
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('ArrowLeft folds and ArrowRight expands a foldable branch in the overlay', () => {
+    useUIStore.setState({
+      rewindTreeNodes: [
+        { id: 'u1', parentId: null, depth: 0, entryType: 'message', role: 'user', preview: '起点', isLeaf: false },
+        { id: 'u2a', parentId: 'u1', depth: 1, entryType: 'message', role: 'user', preview: '分支A', isLeaf: false },
+        { id: 'u3a', parentId: 'u2a', depth: 2, entryType: 'message', role: 'user', preview: '分支A后续', isLeaf: false },
+        { id: 'u2b', parentId: 'u1', depth: 1, entryType: 'message', role: 'user', preview: '分支B', isLeaf: true },
+      ] as never,
+    })
+
+    render(<SessionTreeOverlay open onClose={() => {}} />)
+    // Select 分支A via click
+    fireEvent.click(screen.getByRole('button', { name: /分支A$/i }))
+    expect(screen.getByRole('button', { name: /分支A后续/i })).toBeTruthy()
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(screen.queryByRole('button', { name: /分支A后续/i })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(screen.getByRole('button', { name: /分支A后续/i })).toBeTruthy()
+  })
 })

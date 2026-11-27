@@ -223,7 +223,17 @@ export interface UIState {
   applyRightPanelRuntime: (catalog: RightPanelCatalogItem[], prefs: RightPanelPrefs, order?: string[]) => void
   rewindKey: string
   rewindCheckpoints: Array<{ id: string; trigger: string; description?: string; branch: string; timestamp: number }>
-  rewindTreeNodes: Array<{ id: string; depth: number; label?: string; entryType: string; isLeaf: boolean }>
+  rewindTreeNodes: Array<{
+    id: string
+    parentId?: string | null
+    depth: number
+    label?: string
+    entryType: string
+    isLeaf: boolean
+    role?: string
+    preview?: string
+    timestamp?: string
+  }>
   rewindWorkerBound: boolean
   rewindLoadingCheckpoints: boolean
   rewindLoadingTree: boolean

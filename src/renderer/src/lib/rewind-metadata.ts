@@ -36,10 +36,14 @@ export async function refreshSessionTree(sessionFile: string | null): Promise<vo
     if (seq !== rewindTreeRequestSeq || useUIStore.getState().rewindKey !== key) return
     const nodes = (treeRes?.nodes || []) as Array<{
       id: string
+      parentId?: string | null
       depth: number
       label?: string
       entryType: string
       isLeaf: boolean
+      role?: string
+      preview?: string
+      timestamp?: string
     }>
     const leafId = treeRes?.leafId as string | null | undefined
     const withLeaf =
