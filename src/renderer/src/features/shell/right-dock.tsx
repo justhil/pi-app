@@ -553,6 +553,7 @@ export function RightDock({
   useDismissContextMenu(!!ctxMenu, ctxMenuRef, () => setCtxMenu(null))
   const ctxMenuPos = useContextMenuPosition(ctxMenu, ctxMenuRef, [ctxMenu?.tabId, openTabIds.length])
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
+  const canvasChatExpand = useUIStore((s) => s.canvasChatExpand)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
 
   const availableIds = useMemo(() => panels.map((p) => p.key), [panels])
@@ -646,13 +647,27 @@ export function RightDock({
   const topItem = topActive ? catalogById.get(topActive) : undefined
   const bottomItem = bottomActive ? catalogById.get(bottomActive) : undefined
   const canDragCreateBottomSplit = !isSplit && Boolean(dragTabId) && topIds.length > 1
-  const dockExpanded = Boolean(browserChatExpand || filesPreviewChatExpand)
+  const dockExpanded = Boolean(browserChatExpand || canvasChatExpand || filesPreviewChatExpand)
 
   const handleToggleDockExpand = () => {
     if (topActive === 'files') {
-      useUIStore.setState((s) => ({ filesPreviewChatExpand: !s.filesPreviewChatExpand, browserChatExpand: false }))
+      useUIStore.setState((s) => ({
+        filesPreviewChatExpand: !s.filesPreviewChatExpand,
+        browserChatExpand: false,
+        canvasChatExpand: false,
+      }))
+    } else if (topActive === 'canvas') {
+      useUIStore.setState((s) => ({
+        canvasChatExpand: !s.canvasChatExpand,
+        browserChatExpand: false,
+        filesPreviewChatExpand: false,
+      }))
     } else {
-      useUIStore.setState((s) => ({ browserChatExpand: !s.browserChatExpand, filesPreviewChatExpand: false }))
+      useUIStore.setState((s) => ({
+        browserChatExpand: !s.browserChatExpand,
+        canvasChatExpand: false,
+        filesPreviewChatExpand: false,
+      }))
     }
   }
 
@@ -662,6 +677,7 @@ export function RightDock({
       rightPanelCollapsed: true,
       rightPanelExpandedOnNarrow: false,
       browserChatExpand: false,
+      canvasChatExpand: false,
       filesPreviewChatExpand: false,
     })
   }

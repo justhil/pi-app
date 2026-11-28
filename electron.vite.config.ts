@@ -1,10 +1,11 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { canvasOfflineAssetsPlugin } from './src/main/canvas/offline-assets-plugin'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@earendil-works/pi-ai'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@earendil-works/pi-ai'] }), canvasOfflineAssetsPlugin(__dirname)],
     resolve: {
       alias: {
         '@shared': resolve('packages/shared'),

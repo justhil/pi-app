@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MainLayoutShell } from './main-layout-shell'
 import { applyUiZoom } from '@renderer/lib/ui-zoom'
@@ -119,5 +119,80 @@ describe('MainLayoutShell window-resize adaptation', () => {
     expect(s.rightPanelWidth).toBe(500)
     // 展示 clamp：侧栏 40% of 640 = 256；右栏 640-256-120=264 → 最小值 280
     expect(gridColumns()).toBe('256px minmax(0, 1fr) 280px')
+  })
+})
+
+describe('MainLayoutShell left sidebar drag-to-collapse', () => {
+  it('should_collapse_left_sidebar_when_dragged_past_collapse_threshold_and_preserve_prior_width', () => {
+    useUIStore.setState({ sidebarWidth: 280, sidebarCollapsed: false })
+    const { container } = render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+    const handle = container.querySelector('.panel-resize-edge--left') as HTMLElement
+    expect(handle).not.toBeNull()
+
+    fireEvent.mouseDown(handle, { clientX: 280 })
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 220 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false)
+
+    // Still inside anti-accidental-close buffer (90px >= 64px): must NOT collapse yet.
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 90 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false)
+
+    // Drag past collapse threshold (< 64px, close to left edge)
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 50 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true)
+
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 50 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true)
+    // Restores pre-drag width so re-opening returns to the user's prior width instead of 200px minimum.
+    expect(useUIStore.getState().sidebarWidth).toBe(280)
+  })
+
+  it('should_keep_left_sidebar_open_when_dragged_above_collapse_threshold', () => {
+    useUIStore.setState({ sidebarWidth: 260, sidebarCollapsed: false })
+    const { container } = render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+    const handle = container.querySelector('.panel-resize-edge--left') as HTMLElement
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 100 }))
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 100 }))
+    })
+
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false)
+    expect(useUIStore.getState().sidebarWidth).toBe(200)
+  })
+
+  it('should_reopen_left_sidebar_when_dragged_back_past_hysteresis_before_mouseup', () => {
+    useUIStore.setState({ sidebarWidth: 260, sidebarCollapsed: false })
+    const { container } = render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+    const handle = container.querySelector('.panel-resize-edge--left') as HTMLElement
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 50 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true)
+
+    // Inside hysteresis deadband (80px < 100px): stays collapsed without jitter
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 80 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true)
+
+    // Pull back past reopen threshold (>= 100px) before releasing mouse
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 230 }))
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 230 }))
+    })
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false)
+    expect(useUIStore.getState().sidebarWidth).toBe(230)
   })
 })

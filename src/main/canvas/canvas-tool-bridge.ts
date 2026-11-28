@@ -67,6 +67,7 @@ export async function handleCanvasToolRequest(
     tool,
     args,
     sessionFile: slot.sessionFile ?? null,
+    cwd: slot.cwd || null,
   }
 
   const result = await new Promise<CanvasToolResult>((resolve) => {

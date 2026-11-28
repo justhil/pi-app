@@ -76,6 +76,8 @@ export function ProjectSidebar({
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
+  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
+  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const recentProjects = useUIStore((s) => s.recentProjects)
@@ -734,9 +736,6 @@ export function ProjectSidebar({
     return out
   }, [pinnedSessions, pinnedSessionMeta, sandboxes, diskPaths, currentWorkspace, sessions, sessionsByWorkspace, projectDisplayNames, t])
 
-  // Every hook must run before the collapsed early return: the sidebar stays mounted while collapsed.
-  const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
-  const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
   const isPluginsActive = activeMainPage === 'plugins'
   const isNewChatActive = !isPluginsActive && !historySessionFile && timelineEmpty && !historyLoading
 

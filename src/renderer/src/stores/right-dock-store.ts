@@ -148,6 +148,7 @@ function collapseRightPanelCleanly(): void {
     rightPanelCollapsed: true,
     rightPanelExpandedOnNarrow: false,
     browserChatExpand: false,
+    canvasChatExpand: false,
     filesPreviewChatExpand: false,
   })
 }
@@ -241,8 +242,11 @@ export const useRightDockStore = create<RightDockState>()(
         if (idx < 0) return
 
         const nextOpen = effectiveOpen.filter((id) => id !== panelId)
-        if ((panelId === 'browser' || panelId === 'canvas') && ui.browserChatExpand) {
+        if (panelId === 'browser' && ui.browserChatExpand) {
           useUIStore.setState({ browserChatExpand: false })
+        }
+        if (panelId === 'canvas' && ui.canvasChatExpand) {
+          useUIStore.setState({ canvasChatExpand: false })
         }
         if (panelId === 'files' && ui.filesPreviewChatExpand) {
           useUIStore.setState({ filesPreviewChatExpand: false })

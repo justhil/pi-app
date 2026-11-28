@@ -1,13 +1,14 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { canvasOfflineAssetsPlugin } from './src/main/canvas/offline-assets-plugin'
 
 // Node 25+ ships a global localStorage that shadows jsdom's; switch it off for test workers.
 const flags = process.allowedNodeEnvironmentFlags
 const webstorageOff = flags.has('--no-webstorage') ? ['--no-webstorage'] : flags.has('--no-experimental-webstorage') ? ['--no-experimental-webstorage'] : []
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), canvasOfflineAssetsPlugin(process.cwd())],
   test: {
     environment: 'jsdom',
     globals: true,
