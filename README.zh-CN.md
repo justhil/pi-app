@@ -12,7 +12,7 @@
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux%20%C2%B7%20Android-7583b2?style=flat-square)
 [![License](https://img.shields.io/github/license/justhil/pi-app?style=flat-square&color=7583b2)](LICENSE)
 
-[English](./README.md) · **简体中文** · [下载](https://github.com/justhil/pi-app/releases/latest) · [上手指南](./doc/guide/getting-started.md) · [适配器列表](./doc/guide/adapters.zh-CN.md)
+[English](./README.md) · **简体中文** · [Türkçe](./README.tr.md) · [下载](https://github.com/justhil/pi-app/releases/latest) · [上手指南](./doc/guide/getting-started.md) · [适配器列表](./doc/guide/adapters.zh-CN.md)
 
 </div>
 
