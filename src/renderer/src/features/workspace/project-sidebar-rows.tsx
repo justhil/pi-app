@@ -545,16 +545,18 @@ export function ProjectDiskRow({
   return (
     <div key={path} className="sidebar-project-row" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
+        // The name wins the width: the "+" only takes room while the row is hovered or focused
+        // (absolute, with padding reserved then), and the branch chip gives way before the name.
         className={cn(
-          'group/proj nav-row flex h-[34px] items-center gap-2 rounded-lg pl-2 pr-1.5',
-          branchOpen && 'bg-[var(--sidebar-row-hover)]',
+          'group/proj nav-row relative flex h-[34px] items-center gap-2 rounded-lg pl-2 pr-2 focus-within:pr-8 hover:pr-8',
+          branchOpen && 'bg-[var(--sidebar-row-hover)] pr-8',
         )}
         {...headerDragProps}
       >
         <button
           type="button"
           onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
-          className="sidebar-project-hit flex h-full min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
+          className="sidebar-project-hit flex h-full min-w-0 flex-auto items-center gap-2 text-left focus-visible:outline-none"
           title={shortBranch ? `${path} (${shortBranch})` : path}
           aria-expanded={open}
           aria-current={active ? 'location' : undefined}
@@ -593,11 +595,13 @@ export function ProjectDiskRow({
               setBranchOpen((v) => !v)
             }}
             className={cn(
-              'group/br inline-flex h-[20px] max-w-[76px] shrink-0 items-center gap-0.5 rounded px-1 font-mono text-[10px] transition-all hover:bg-foreground/[0.08] hover:text-foreground disabled:opacity-50',
+              // shrink-[100]: when the row is tight this chip shrinks long before the project name does.
+              'group/br inline-flex h-[20px] min-w-0 max-w-[76px] shrink-[100] items-center gap-0.5 overflow-hidden rounded px-1 font-mono text-[10px] transition-colors hover:bg-foreground/[0.08] hover:text-foreground disabled:opacity-50',
               branchOpen
-                ? 'bg-foreground/[0.09] text-foreground opacity-100'
+                ? 'bg-foreground/[0.09] text-foreground'
                 : isDefaultBranch
-                  ? 'text-foreground-secondary/50 opacity-0 group-hover/proj:opacity-80 focus-visible:opacity-100'
+                  ? // main / master: no room taken until the row is hovered or focused.
+                    'sr-only text-foreground-secondary/50 focus-visible:not-sr-only group-hover/proj:not-sr-only group-hover/proj:opacity-80'
                   : 'text-foreground-secondary/75 opacity-80 group-hover/proj:opacity-100',
             )}
           >
@@ -619,7 +623,7 @@ export function ProjectDiskRow({
           }}
           aria-label={t('common:newSession')}
           title={t('common:newSession')}
-          className="sidebar-section-action ml-0.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/proj:opacity-100"
+          className="sidebar-section-action absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/proj:opacity-100"
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>
