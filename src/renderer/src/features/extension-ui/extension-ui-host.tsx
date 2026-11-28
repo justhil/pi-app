@@ -450,6 +450,7 @@ export function ExtensionUIHost() {
   const pending = useExtensionUIStore((s) => s.activePending)
   const inlineHostMounted = useExtensionUIStore((s) => s.inlineHostMounted)
   const inlineQuestionnaireExpandedModal = useExtensionUIStore((s) => s.inlineQuestionnaireExpandedModal)
+  const setInlineQuestionnaireExpandedModal = useExtensionUIStore((s) => s.setInlineQuestionnaireExpandedModal)
   const clearAfterRespond = useExtensionUIStore((s) => s.clearAfterRespond)
 
   const cancelWorker = (id: string) => {
@@ -486,6 +487,9 @@ export function ExtensionUIHost() {
           questions={pending.questions}
           deadlineAt={pending.deadlineAt}
           timeoutMs={pending.timeoutMs}
+          onCollapseToInline={
+            inlineHostMounted ? () => setInlineQuestionnaireExpandedModal(false) : undefined
+          }
           onSubmit={(result) => {
             const s = useExtensionUIStore.getState().suspended
             const tid = findToolContextForUi().timelineItemId || s?.timelineItemId

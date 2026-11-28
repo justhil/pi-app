@@ -243,4 +243,56 @@ describe('questionnaire-rpc-ui & desktop-ui-bridge (pi-decide + pi-plan-mode)', 
     bridge.dispose()
     expect(getDesktopUIBridge(wrappedUi)).toBeNull()
   })
+
+  it('supports rpiv-ask-user-question "Type something." sentinel + pi-ask-user-questions free-text batch input', async () => {
+    const bus = { on: () => () => {} } as unknown as EventBus
+    const base = createDesktopUIBridge(bus, () => {}).uiContext as unknown as ExtensionUIContext
+    // 1. rpiv-ask-user-question single-select custom answer ("3. Type something." -> ui.input)
+    const rpivUi = createQuestionnaireRpcUI(
+      base,
+      'rpiv-call-1',
+      [
+        {
+          question: 'Pick DB?',
+          options: [{ label: 'SQLite (Recommended)' }, { label: 'Postgres' }],
+        },
+      ],
+      undefined,
+      async () => ({
+        cancelled: false,
+        answers: [{ questionIndex: 0, question: 'Pick DB?', kind: 'custom', answer: 'DuckDB' }],
+      }),
+    )
+    const sentinel = await rpivUi.select('Pick DB?', [
+      '1. SQLite (Recommended) — local',
+      '2. Postgres — server',
+      '3. Type something.',
+    ])
+    expect(sentinel).toBe('3. Type something.')
+    const typed = await rpivUi.input('Type your answer:', '')
+    expect(typed).toBe('DuckDB')
+
+    // 2. pi-ask-user-questions batch free-text (`options: []`, sequential ui.input calls)
+    const freeTextUi = createQuestionnaireRpcUI(
+      base,
+      'ask-user-1',
+      [
+        { question: 'What should I call you?', description: 'used in greeting', options: [] },
+        { question: 'What are we building?', options: [] },
+      ],
+      undefined,
+      async (_id, _qs, _sig, timeoutMs) => {
+        expect(timeoutMs).toBe(120_000)
+        return {
+          cancelled: false,
+          answers: [
+            { questionIndex: 0, question: 'What should I call you?', kind: 'custom', answer: 'Hil' },
+            { questionIndex: 1, question: 'What are we building?', kind: 'custom', answer: 'pi-Desktop' },
+          ],
+        }
+      },
+    )
+    expect(await freeTextUi.input('Question 1 of 2', undefined, { timeout: 120_000 })).toBe('Hil')
+    expect(await freeTextUi.input('Question 2 of 2', undefined)).toBe('pi-Desktop')
+  })
 })

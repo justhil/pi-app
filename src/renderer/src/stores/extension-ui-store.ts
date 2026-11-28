@@ -152,6 +152,7 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
       activePending: queuedNext,
       pendingQueue: rest,
       suspended: next.background || !keepParked ? next : keepParked,
+      inlineQuestionnaireExpandedModal: false,
     })
   },
 
@@ -218,7 +219,7 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
         next && sessionFilesEqual(pendingSessionFile(next), pendingSessionFile(activePending))
       if (!sameSession) syncWaitingUi(pendingSessionFile(activePending), false)
       if (next) syncWaitingUi(pendingSessionFile(next), true)
-      set({ activePending: next, pendingQueue: rest })
+      set({ activePending: next, pendingQueue: rest, inlineQuestionnaireExpandedModal: false })
       return
     }
     if (suspended?.requestId === id) {

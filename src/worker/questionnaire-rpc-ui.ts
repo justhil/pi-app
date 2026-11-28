@@ -54,9 +54,10 @@ function findToggleDoneRow(options: string[]): string | undefined {
 
 /**
  * Translates RPC-mode sequential `ui.select` / `ui.input` / `ui.editor` prompt loops
- * (used by rpiv-ask-user-question, pi-decide, and @narumitw/pi-tui-kit) into a single
- * rich multi-question desktop QuestionnaireDialog request, preserving deadline timeouts,
- * multi-select toggle loops, recommended badges, and custom free-form answers.
+ * (used by rpiv-ask-user-question & forks, pi-decide, pi-ask-user-questions, and
+ * @narumitw/pi-tui-kit) into a single rich multi-question desktop QuestionnaireDialog
+ * / ComposerInlineQuestionnaire request, preserving deadline timeouts, multi-select
+ * toggle loops, recommended badges, and custom free-form answers.
  */
 export function createQuestionnaireRpcUI(
   base: ExtensionUIContext,
@@ -119,9 +120,10 @@ export function createQuestionnaireRpcUI(
 
     if (answer.kind === 'custom') {
       const customText = answer.answer || ''
-      const hasSyntheticOtherRow =
-        options.length > (questions[current]?.options.length ?? 0) &&
-        /other|free-form|custom|type your own/i.test(options.at(-1) || '')
+      // Extensions that append a trailing sentinel row ("3. Type something." / "Other (free-form)")
+      // expect that sentinel row first, then read the typed text via `ui.input()` or `ui.editor()`.
+      const authoredCount = questions[current]?.options.length ?? 0
+      const hasSyntheticOtherRow = authoredCount > 0 && options.length === authoredCount + 1
       if (hasSyntheticOtherRow) {
         customInput = { questionIndex: current, answer: customText }
         return options.at(-1)
@@ -133,14 +135,18 @@ export function createQuestionnaireRpcUI(
     return answer.answer ? rpcOptionValue(options, answer.answer) : undefined
   }
 
-  const consumeCustomText = async (): Promise<string | undefined> => {
+  const consumeCustomText = async (
+    _title?: string,
+    _placeholder?: string,
+    opts?: { timeout?: number; signal?: AbortSignal },
+  ): Promise<string | undefined> => {
     if (customInput) {
       const answer = customInput.answer
       customInput = null
       return answer
     }
     const current = questionIndex++
-    const questionnaire = await result()
+    const questionnaire = await result(opts?.timeout)
     if (questionnaire.cancelled) return undefined
     const answer = matchingAnswer(questionnaire, current)
     if (!answer) return undefined

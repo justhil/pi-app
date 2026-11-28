@@ -1,0 +1,66 @@
+{
+  "id": "pi-ask-user-questions",
+  "displayName": "Ask User Questions",
+  "description": "多题自由文本问答（将逐题输入框合并为输入框上方内联卡片与可展开弹窗）",
+  "match": {
+    "names": [
+      "pi-ask-user-questions",
+      "@zhushanwen/pi-ask-user"
+    ],
+    "tools": [
+      "ask_user"
+    ],
+    "commands": [
+      "/ask-demo"
+    ]
+  },
+  "install": {
+    "source": "npm:pi-ask-user-questions",
+    "homepage": "https://github.com/qunm00/pi-ask-user-questions"
+  },
+  "tier": "native",
+  "toolCard": {
+    "template": "kv",
+    "icon": "MessageCircleQuestion"
+  },
+  "interact": {
+    "trigger": {
+      "tool": "ask_user"
+    },
+    "schema": "questions",
+    "fields": {
+      "questions": "$.questions"
+    }
+  },
+  "slash": {
+    "/ask-demo": "execute"
+  },
+  "config": {
+    "note": "桌面端将 ask_user 多题问答统一渲染为输入框上方分步内联卡片（可放大为弹窗并随时收起回卡片）。",
+    "i18n": {
+      "zh": {
+        "note": "桌面端将 ask_user 多题问答统一渲染为输入框上方分步内联卡片（可放大为弹窗并随时收起回卡片）。"
+      },
+      "en": {
+        "note": "Renders multi-question ask_user prompts as a tabbed inline card above the composer that can pop out into a modal and dock back."
+      },
+      "ru": {
+        "note": "Отображает вопросы ask_user в виде встроенной карточки с вкладками над полем ввода с возможностью разворачивания в окно и обратно."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Ask User Questions",
+      "description": "多题自由文本问答（将逐题输入框合并为输入框上方内联卡片与可展开弹窗）"
+    },
+    "en": {
+      "displayName": "Ask User Questions",
+      "description": "Batch free-form user questions (unified inline card & expandable modal)"
+    },
+    "ru": {
+      "displayName": "Ask User Questions",
+      "description": "Пакетные текстовые вопросы пользователю (единая встроенная карточка и модальное окно)"
+    }
+  }
+}

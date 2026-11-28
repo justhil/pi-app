@@ -4,7 +4,7 @@ import { Check, ChevronDown } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import type { AskQuestionPayload } from './questionnaire-dialog'
 import { hasRichMarkdownSyntax, QuestionnaireMarkdown } from './questionnaire-markdown'
-import type { QuestionDraft } from './questionnaire-model'
+import { parseOptionRecommendation, type QuestionDraft } from './questionnaire-model'
 
 const LONG_DESC_CHAR_LIMIT = 220
 const LONG_DESC_LINE_LIMIT = 4
@@ -90,11 +90,37 @@ export function QuestionnaireOptions({
     el.style.height = `${Math.max(minH, Math.min(el.scrollHeight, maxH))}px`
   }, [draft.custom, draft.useCustom, wideCustom])
 
+  const freeTextOnly = question.options.length === 0
+
+  if (freeTextOnly) {
+    return (
+      <div className="space-y-2">
+        {question.description && (
+          <p className="text-[12px] leading-relaxed text-muted-foreground">{question.description}</p>
+        )}
+        <textarea
+          ref={customRef}
+          className="w-full resize-none overflow-y-auto rounded-lg border border-input bg-background px-3 py-2 text-[13px] leading-5 outline-none focus:border-primary/50"
+          rows={3}
+          placeholder={t('extension:qOtherPlaceholder')}
+          value={draft.custom}
+          onChange={(event) => onCustomChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault()
+              onCommit()
+            }
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-1.5" role={multi ? 'group' : 'radiogroup'} aria-label={question.question}>
       {question.options.map((option, index) => {
         const checked = !draft.useCustom && draft.selected.includes(option.label)
-        const isRecommended = Boolean(question.recommended && question.recommended === option.label)
+        const { displayLabel, isRecommended } = parseOptionRecommendation(option.label, question.recommended)
         const recReason = isRecommended ? question.recommendedBecause?.trim() : undefined
         const desc = option.description?.trim() ?? ''
         const descRich = Boolean(desc && (hasRichMarkdownSyntax(desc) || desc.includes('\n')))
@@ -125,7 +151,7 @@ export function QuestionnaireOptions({
               <Indicator checked={checked} multi={multi} />
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-1.5 break-words [overflow-wrap:anywhere] text-[13px] font-medium leading-5">
-                  <span>{option.label}</span>
+                  <span>{displayLabel}</span>
                   {isRecommended && (
                     <span className="inline-flex shrink-0 items-center rounded-full border border-[var(--brand)]/35 bg-[var(--brand)]/10 px-1.5 py-0 text-[10.5px] font-medium leading-4 text-[var(--brand)]">
                       {t('extension:qRecommended')}

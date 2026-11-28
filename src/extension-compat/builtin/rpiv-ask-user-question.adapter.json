@@ -1,11 +1,17 @@
 {
   "id": "@juicesharp/rpiv-ask-user-question",
   "displayName": "Ask User Question",
-  "description": "结构化问卷（桌面问卷对话框，含选项预览合并）",
+  "description": "结构化交互问卷（支持输入框上方内联卡片与全屏弹窗双向切换、推荐项高亮、侧栏预览与可选倒计时）",
   "match": {
     "names": [
       "@juicesharp/rpiv-ask-user-question",
-      "rpiv-ask-user-question"
+      "rpiv-ask-user-question",
+      "@nicknisi/pi-ask-user-question",
+      "@probabl/pi-ask-user-question",
+      "@ssk_dev/rpiv-ask-user-question-lean",
+      "@brightmeows/pi-ask-user-question",
+      "avtc-pi-ask-user-question",
+      "pi-ask-user-question"
     ],
     "tools": [
       "ask_user_question"
@@ -31,31 +37,138 @@
     }
   },
   "config": {
-    "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。",
+    "configFile": "~/.config/rpiv-ask-user-question/config.json",
+    "fileKeyMap": {
+      "desktopTimeoutSeconds": "desktopTimeoutSeconds",
+      "collapseKey": "collapseKey",
+      "notesKey": "notesKey",
+      "promptSnippet": "guidance.promptSnippet",
+      "toolDescription": "guidance.description"
+    },
+    "sections": [
+      {
+        "title": "桌面交互与超时",
+        "fields": [
+          {
+            "key": "desktopTimeoutSeconds",
+            "type": "number",
+            "label": "桌面作答倒计时（秒）",
+            "description": "大于 0 时显示实时倒计时并在到期后自动关闭问卷（0 为不限时；@nicknisi 分支默认 300 秒）。",
+            "default": 0
+          },
+          {
+            "key": "collapseKey",
+            "type": "text",
+            "label": "TUI 收起快捷键",
+            "description": "终端模式下的折叠快捷键（如 ctrl+]、alt+o 或 off）。",
+            "default": "ctrl+]"
+          },
+          {
+            "key": "notesKey",
+            "type": "text",
+            "label": "TUI 备注键",
+            "description": "终端模式下打开补充备注的按键。",
+            "default": "n"
+          }
+        ],
+        "i18n": {
+          "zh": { "title": "桌面交互与超时" },
+          "en": { "title": "Desktop Interaction & Timeout" },
+          "ru": { "title": "Взаимодействие и таймер" }
+        }
+      },
+      {
+        "title": "提示词引导（可选）",
+        "fields": [
+          {
+            "key": "promptSnippet",
+            "type": "text",
+            "label": "系统提示词摘要",
+            "description": "覆盖注入给模型的单行工具提示语（留空使用内置默认，重启会话生效）。",
+            "default": ""
+          },
+          {
+            "key": "toolDescription",
+            "type": "text",
+            "label": "工具详细说明覆盖",
+            "description": "完整替换 ask_user_question 的工具描述文本（留空使用内置默认）。",
+            "default": ""
+          }
+        ],
+        "i18n": {
+          "zh": { "title": "提示词引导（可选）" },
+          "en": { "title": "Prompt Guidance (Optional)" },
+          "ru": { "title": "Подсказки промпта (необязательно)" }
+        }
+      }
+    ],
+    "note": "桌面端已升级为输入框上方内联卡片与可缩放模态弹窗双形态，自动识别 (Recommended) 推荐标记与选项预览。",
     "i18n": {
       "zh": {
-        "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。"
+        "note": "桌面端已升级为输入框上方内联卡片与可缩放模态弹窗双形态，自动识别 (Recommended) 推荐标记与选项预览。"
       },
       "en": {
-        "note": "Questionnaire interactions are injected via Worker uiContext and forwarded as extension-ui-request; rendered by the desktop QuestionnaireDialog with no configuration needed."
+        "note": "Rendered on desktop as a dockable inline card above the composer with expandable modal preview, automatic (Recommended) badges, and optional countdown."
       },
       "ru": {
-        "note": "Взаимодействие с опросником передаётся Worker'ом через uiContext и extension-ui-request; в desktop отображается через QuestionnaireDialog и не требует настройки."
+        "note": "В desktop отображается как встроенная карточка над полем ввода с разворачиваемым модальным окном, метками (Recommended), предпросмотром и опциональным таймером."
       }
     }
   },
   "i18n": {
     "zh": {
       "displayName": "Ask User Question",
-      "description": "结构化问卷（桌面问卷对话框，含选项预览合并）"
+      "description": "结构化交互问卷（支持输入框上方内联卡片与全屏弹窗双向切换、推荐项高亮、侧栏预览与可选倒计时）",
+      "fieldLabels": {
+        "desktopTimeoutSeconds": "桌面作答倒计时（秒）",
+        "collapseKey": "TUI 收起快捷键",
+        "notesKey": "TUI 备注键",
+        "promptSnippet": "系统提示词摘要",
+        "toolDescription": "工具详细说明覆盖"
+      },
+      "fieldDescriptions": {
+        "desktopTimeoutSeconds": "大于 0 时显示实时倒计时并在到期后自动关闭问卷（0 为不限时；@nicknisi 分支默认 300 秒）。",
+        "collapseKey": "终端模式下的折叠快捷键（如 ctrl+]、alt+o 或 off）。",
+        "notesKey": "终端模式下打开补充备注的按键。",
+        "promptSnippet": "覆盖注入给模型的单行工具提示语（留空使用内置默认，重启会话生效）。",
+        "toolDescription": "完整替换 ask_user_question 的工具描述文本（留空使用内置默认）。"
+      }
     },
     "en": {
       "displayName": "Ask User Question",
-      "description": "Structured questionnaire (desktop question dialog with option previews)"
+      "description": "Structured questionnaire (dockable inline card & expandable modal, recommended badges, previews & optional countdown)",
+      "fieldLabels": {
+        "desktopTimeoutSeconds": "Desktop Countdown (seconds)",
+        "collapseKey": "TUI Collapse Key",
+        "notesKey": "TUI Notes Key",
+        "promptSnippet": "System Prompt Snippet",
+        "toolDescription": "Tool Description Override"
+      },
+      "fieldDescriptions": {
+        "desktopTimeoutSeconds": "When > 0, shows a live countdown and auto-dismisses when time expires (0 = no limit; @nicknisi fork defaults to 300s).",
+        "collapseKey": "Shortcut for collapsing the overlay in terminal mode (e.g. ctrl+], alt+o, or off).",
+        "notesKey": "Key that opens the notes editor in terminal mode.",
+        "promptSnippet": "Override the one-line prompt snippet shown to the model (leave empty for built-in default).",
+        "toolDescription": "Replace the full ask_user_question tool description (leave empty for built-in default)."
+      }
     },
     "ru": {
       "displayName": "Ask User Question",
-      "description": "Структурированный опросник (диалог вопросов в desktop с предпросмотром вариантов)"
+      "description": "Структурированный опросник (встроенная карточка и модальное окно, метки рекомендаций, предпросмотр и таймер)",
+      "fieldLabels": {
+        "desktopTimeoutSeconds": "Таймер ответа в desktop (сек)",
+        "collapseKey": "Клавиша сворачивания (TUI)",
+        "notesKey": "Клавиша заметок (TUI)",
+        "promptSnippet": "Краткая подсказка промпта",
+        "toolDescription": "Описание инструмента"
+      },
+      "fieldDescriptions": {
+        "desktopTimeoutSeconds": "При значении > 0 показывает обратный отсчёт и автоматически закрывает опрос по истечении времени (0 — без лимита; форк @nicknisi по умолчанию 300 с).",
+        "collapseKey": "Сочетание клавиш для сворачивания в терминале (например ctrl+], alt+o или off).",
+        "notesKey": "Клавиша открытия заметок в терминальном режиме.",
+        "promptSnippet": "Переопределяет однострочное описание для модели (оставьте пустым для значения по умолчанию).",
+        "toolDescription": "Полностью заменяет описание ask_user_question (оставьте пустым для значения по умолчанию)."
+      }
     }
   }
 }

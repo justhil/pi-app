@@ -113,6 +113,7 @@ export interface InteractDefaults {
   options?: string[]
   cancelLabel?: string
   allowFeedback?: boolean
+  timeoutSeconds?: number
 }
 
 export interface InteractDef {

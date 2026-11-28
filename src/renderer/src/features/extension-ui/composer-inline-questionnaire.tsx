@@ -23,7 +23,10 @@ import {
   buildAnswers,
   clearDrafts,
   isAnswered,
+  loadActiveTab,
   loadDrafts,
+  parseOptionRecommendation,
+  saveActiveTab,
   saveDrafts,
   type QuestionDraft,
 } from './questionnaire-model'
@@ -104,8 +107,8 @@ function InlineQuestionnaireCard({
   const setExpandedModal = useExtensionUIStore((s) => s.setInlineQuestionnaireExpandedModal)
 
   const [collapsed, setCollapsed] = useState(false)
-  const [tab, setTab] = useState(0)
-  const [drafts, setDrafts] = useState<QuestionDraft[]>(() => loadDrafts(requestId, questions.length))
+  const [tab, setTab] = useState(() => loadActiveTab(requestId, questions.length) ?? 0)
+  const [drafts, setDrafts] = useState<QuestionDraft[]>(() => loadDrafts(requestId, questions.length, questions))
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
   const [previewLabel, setPreviewLabel] = useState<string | undefined>(undefined)
   const [notice, setNotice] = useState<string | null>(null)
@@ -121,6 +124,10 @@ function InlineQuestionnaireCard({
   useEffect(() => {
     saveDrafts(requestId, drafts)
   }, [requestId, drafts])
+
+  useEffect(() => {
+    saveActiveTab(requestId, tab)
+  }, [requestId, tab])
 
   useEffect(
     () => () => {
@@ -266,7 +273,7 @@ function InlineQuestionnaireCard({
   const activePreview =
     q.options.find((o) => o.label === previewLabel)?.preview ||
     q.options.find((o) => draft.selected.includes(o.label))?.preview ||
-    (q.recommended ? q.options.find((o) => o.label === q.recommended)?.preview : undefined) ||
+    q.options.find((o) => parseOptionRecommendation(o.label, q.recommended).isRecommended && o.preview)?.preview ||
     q.options.find((o) => typeof o.preview === 'string' && o.preview.trim().length > 0)?.preview
 
   return (
@@ -310,9 +317,13 @@ function InlineQuestionnaireCard({
           </button>
           <button
             type="button"
-            title={t('extension:confirm')}
-            aria-label="Expand dialog"
-            onClick={() => setExpandedModal(true)}
+            title={t('extension:qExpandToModal')}
+            aria-label={t('extension:qExpandToModal')}
+            onClick={() => {
+              saveDrafts(requestId, drafts)
+              saveActiveTab(requestId, tab)
+              setExpandedModal(true)
+            }}
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground"
           >
             <Maximize2 className="h-3 w-3" />
