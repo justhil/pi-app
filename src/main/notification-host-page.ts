@@ -66,7 +66,7 @@ export function notificationHostPageHtml(): string {
       border: 1px solid var(--line);
       border-radius: 10px;
       background: var(--surface);
-      padding: 9px 11px 8px 13px;
+      padding: 9px 11px 8px 11px;
       box-shadow: var(--shadow);
       cursor: pointer;
       transition: background-color 130ms ease, border-color 130ms ease, transform 140ms cubic-bezier(.16,1,.3,1);
@@ -76,17 +76,7 @@ export function notificationHostPageHtml(): string {
       transform: translateX(12px) scale(.985);
       animation: card-in 175ms cubic-bezier(.16,1,.3,1) forwards;
     }
-    .card::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background: var(--ok);
-      opacity: .85;
-    }
-    .card.is-failed::before { background: var(--danger); }
+    /* No status stripe on the left edge: the eyebrow's status dot already says done / failed. */
     .card:hover {
       background: var(--surface-hover);
       transform: translateY(-1px);
