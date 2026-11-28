@@ -1,10 +1,10 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import katex from 'katex'
 import { Eye, EyeOff, Minus, Plus, RotateCcw, X } from '@renderer/components/icons'
 import { compileExpression, expressionToLatex, type CompiledExpression } from '../engine'
 import { useBlockState } from '../block-state'
 import { seriesColor } from '../format'
 import { BlockFrame } from '../frame'
+import { useUiBlockKatex } from '../katex-lazy'
 import { v } from '../schema'
 import type { UIBlockComponentProps, UIBlockDefinition } from '../types'
 import { useElementWidth } from '../use-element-width'
@@ -200,11 +200,12 @@ function sampleImplicit(fn: CompiledExpression, vp: Viewport, w: number, h: numb
 }
 
 const MathChip = memo(function MathChip({ expr }: { expr: string }) {
+  const renderKatex = useUiBlockKatex()
   const html = useMemo(() => {
+    if (!renderKatex) return null
     const tex = exprLatex(expr)
-    if (!tex) return null
-    return katex.renderToString(tex, { throwOnError: false, output: 'html', strict: 'ignore' })
-  }, [expr])
+    return tex ? renderKatex(tex) : null
+  }, [expr, renderKatex])
   if (!html) return <span className="uib-fplot-raw">{expr}</span>
   return <span className="uib-fplot-math" dangerouslySetInnerHTML={{ __html: html }} />
 })

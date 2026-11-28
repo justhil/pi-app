@@ -1,13 +1,12 @@
 import { useId, useMemo } from 'react'
-import katex from 'katex'
 import { formulaToLatex, type ResolvedNode } from '../engine'
+import { useUiBlockKatex } from '../katex-lazy'
 import { LIVE_TONES, type LiveTone, readNumber, readText, useLiveBlock } from './live-context'
 
 function KatexLine({ latex, className }: { latex: string; className?: string }) {
-  const html = useMemo(
-    () => katex.renderToString(latex, { throwOnError: false, output: 'html', strict: 'ignore' }),
-    [latex],
-  )
+  const renderKatex = useUiBlockKatex()
+  const html = useMemo(() => (renderKatex ? renderKatex(latex) : null), [latex, renderKatex])
+  if (!html) return <code className={className}>{latex}</code>
   return <span className={className} dangerouslySetInnerHTML={{ __html: html }} />
 }
 

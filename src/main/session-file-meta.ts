@@ -44,7 +44,7 @@ export async function readSessionMetaFromFile(sessionFile: string): Promise<Sess
     const distro = wslWindowsPathDistro(sessionFile)
     const remotePath = distro ? windowsPathToWsl(distro, sessionFile) : ''
     if (!distro || !remotePath) return null
-    const res = await runWslDistroAsync(distro, ['head', '-n', '10', remotePath], { timeout: 10000 })
+    const res = await runWslDistroAsync(distro, ['head', '-n', '10', '--', remotePath], { timeout: 10000 })
     if (res.status !== 0) return null
     const parsed = parseFirstSessionLine(res.stdout)
     if (parsed) rememberSessionMeta(sessionFile, parsed)

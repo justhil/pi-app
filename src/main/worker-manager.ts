@@ -1252,8 +1252,8 @@ async function deleteOfflineSessionFile(sessionFile: string): Promise<{ ok: bool
   if (isSshWindowsPath(sessionFile)) {
     const distro = wslWindowsPathDistro(sessionFile)
     const remotePath = distro ? windowsPathToWsl(distro, sessionFile) : ''
-    if (distro && remotePath) {
-      const res = await runWslDistroAsync(distro, ['rm', '-f', remotePath], { timeout: 10000 })
+    if (distro && remotePath && remotePath !== '/') {
+      const res = await runWslDistroAsync(distro, ['rm', '-f', '--', remotePath], { timeout: 10000 })
       if (res.status !== 0) return { ok: false, error: res.stderr || 'SSH delete failed' }
     }
     clearSessionLeafOverride(sessionFile)

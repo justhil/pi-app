@@ -26,6 +26,8 @@ test('conversations and projects can be dragged into a new order', async () => {
     }
     await expect.poll(order).toEqual(['third topic', 'second topic', 'first topic'])
 
+    // Ensure the Electron window holds OS focus before HTML5 drag synthesis in multi-spec runs.
+    await win.bringToFront()
     // Drop the oldest conversation on the top half of the newest one.
     await row('first topic').dragTo(row('third topic'), { targetPosition: top })
     await expect.poll(order).toEqual(['first topic', 'third topic', 'second topic'])

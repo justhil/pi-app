@@ -59,7 +59,7 @@ async function copyBundle(distro: string, entry: 'worker.mjs' | 'preview-wsl.mjs
   if (isSshDistro(distro)) {
     const cacheKey = `${distro}:${entry}`
     if (sshHashCache.get(cacheKey) === marker) return `${dir}/${entry}`
-    const checkRes = await runWslDistroAsync(distro, ['cat', `${dir}/${markerFile}`], { timeout: 10000 })
+    const checkRes = await runWslDistroAsync(distro, ['cat', '--', `${dir}/${markerFile}`], { timeout: 10000 })
     if (checkRes.status === 0 && checkRes.stdout.trim() === marker) {
       sshHashCache.set(cacheKey, marker)
       return `${dir}/${entry}`
