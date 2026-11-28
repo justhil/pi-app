@@ -3,7 +3,9 @@ import { chartDefinition } from './components/chart'
 import { dataTableDefinition } from './components/data-table'
 import { decisionTreeDefinition } from './components/decision-tree'
 import { diffDefinition } from './components/diff'
+import { functionPlotDefinition } from './components/function-plot'
 import { ganttDefinition } from './components/gantt'
+import { imageGalleryDefinition } from './components/image-gallery'
 import { quizDefinition } from './components/quiz'
 import { statGridDefinition } from './components/stat-grid'
 import type { UIBlockDefinition } from './types'
@@ -13,6 +15,8 @@ const definitions = [
   cardGridDefinition,
   dataTableDefinition,
   chartDefinition,
+  functionPlotDefinition,
+  imageGalleryDefinition,
   diffDefinition,
   decisionTreeDefinition,
   quizDefinition,

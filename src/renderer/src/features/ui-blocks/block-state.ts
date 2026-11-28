@@ -1,12 +1,18 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Interaction state (sort, page, quiz answers, tree position…) keyed by block identity. A block
- * remounts when a streamed answer moves it from the live tail into the settled prefix and again
- * when the final render replaces the streaming one; a module store keeps what the user did.
+ * Interaction state (sort, page, quiz answers, live panel overrides…) keyed by block identity.
+ * Shared across mounts and synchronized between Timeline inline blocks and the Canvas side stage.
  */
 const MAX_ENTRIES = 300
 const store = new Map<string, unknown>()
+const listeners = new Map<string, Set<(value: unknown) => void>>()
+
+function notify(key: string, value: unknown): void {
+  const subs = listeners.get(key)
+  if (!subs) return
+  for (const cb of subs) cb(value)
+}
 
 function remember(key: string, value: unknown): void {
   store.delete(key)
@@ -15,6 +21,7 @@ function remember(key: string, value: unknown): void {
     const oldest = store.keys().next().value
     if (oldest !== undefined) store.delete(oldest)
   }
+  notify(key, value)
 }
 
 export function useBlockState<T>(
@@ -28,6 +35,23 @@ export function useBlockState<T>(
   )
   const keyRef = useRef(key)
   keyRef.current = key
+
+  useEffect(() => {
+    let subs = listeners.get(key)
+    if (!subs) {
+      subs = new Set()
+      listeners.set(key, subs)
+    }
+    const handler = (incoming: unknown) => {
+      setValue((prev) => (Object.is(prev, incoming) ? prev : (incoming as T)))
+    }
+    subs.add(handler)
+    return () => {
+      subs?.delete(handler)
+      if (subs && subs.size === 0) listeners.delete(key)
+    }
+  }, [key])
+
   const update = useCallback((next: T | ((previous: T) => T)) => {
     setValue((previous) => {
       const resolved = typeof next === 'function' ? (next as (previous: T) => T)(previous) : next
@@ -44,12 +68,6 @@ const ENTRY_WINDOW_MS = 1400
 
 export type EntryAnimation = { animate: boolean; elapsed: number }
 
-/**
- * Entry animation plays when a block first completes during a live answer; history renders still.
- * A streamed block remounts right after it completes (live tail → settled prefix → final render),
- * so a remount inside the entry window resumes the animation `elapsed` ms in (negative CSS delay)
- * instead of restarting it or cutting it off.
- */
 export function claimEntryAnimation(blockKey: string, streaming: boolean, now = performance.now()): EntryAnimation {
   const first = firstSeen.get(blockKey)
   if (first === undefined) {
@@ -65,7 +83,6 @@ export function claimEntryAnimation(blockKey: string, streaming: boolean, now = 
   return elapsed < ENTRY_WINDOW_MS ? { animate: true, elapsed } : { animate: false, elapsed: 0 }
 }
 
-/** FNV-1a over the raw fence body: stable, cheap identity for a block's content. */
 export function contentHash(text: string): string {
   let hash = 0x811c9dc5
   for (let index = 0; index < text.length; index += 1) {
@@ -78,4 +95,5 @@ export function contentHash(text: string): string {
 export function clearBlockStateForTests(): void {
   store.clear()
   firstSeen.clear()
+  listeners.clear()
 }

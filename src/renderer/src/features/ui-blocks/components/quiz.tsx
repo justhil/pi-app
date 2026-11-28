@@ -5,13 +5,19 @@ import { useBlockState } from '../block-state'
 import { BlockFrame } from '../frame'
 import { v } from '../schema'
 import type { UIBlockComponentProps, UIBlockDefinition } from '../types'
+import { ImageLightbox, safeBlockImageUrl } from './image-gallery'
 
 type RawAnswer = number | string
+type RichOption = { text: string; next?: string; explanation?: string }
+type RawOption = string | RichOption
 type QuizQuestion = {
+  id?: string
   question: string
-  options: string[]
+  image?: string
+  options: RawOption[]
   answer?: RawAnswer | RawAnswer[]
   explanation?: string
+  next?: string
 }
 type QuizProps = { title?: string; mode?: 'list' | 'step'; questions: QuizQuestion[] }
 
@@ -20,15 +26,24 @@ const rawAnswer = v.custom<RawAnswer>(
   'expected option index or option text',
 )
 
+const richOption = v.object<RichOption>({
+  text: v.string(),
+  next: v.optional(v.string()),
+  explanation: v.optional(v.string()),
+})
+
 const schema = v.object<QuizProps>({
   title: v.optional(v.string()),
   mode: v.optional(v.enum(['list', 'step'] as const)),
   questions: v.array(
     v.object<QuizQuestion>({
+      id: v.optional(v.string()),
       question: v.string(),
-      options: v.array(v.string(), { min: 2, max: 10 }),
+      image: v.optional(v.string()),
+      options: v.array(v.union<RawOption>(v.string(), richOption), { min: 2, max: 10 }),
       answer: v.optional(v.union<RawAnswer | RawAnswer[]>(rawAnswer, v.array(rawAnswer, { min: 1 }))),
       explanation: v.optional(v.string()),
+      next: v.optional(v.string()),
     }),
     { min: 1, max: 50 },
   ),
@@ -67,14 +82,36 @@ export function resolveAnswer(raw: RawAnswer, options: string[]): number | null 
   return null
 }
 
-type PreparedQuestion = QuizQuestion & { correct: number[] | null; multi: boolean }
+type PreparedOption = { text: string; next?: string; explanation?: string }
+type PreparedQuestion = Omit<QuizQuestion, 'options'> & {
+  options: PreparedOption[]
+  correct: number[] | null
+  multi: boolean
+  safeImage?: string
+}
 
 function prepare(question: QuizQuestion): PreparedQuestion {
-  const options = stripLetterPrefixes(question.options)
+  const rawTexts = question.options.map((o) => (typeof o === 'string' ? o : o.text))
+  const stripped = stripLetterPrefixes(rawTexts)
+  const options: PreparedOption[] = question.options.map((o, i) =>
+    typeof o === 'string'
+      ? { text: stripped[i] ?? o }
+      : { text: stripped[i] ?? o.text, next: o.next, explanation: o.explanation },
+  )
   const list = question.answer === undefined ? [] : Array.isArray(question.answer) ? question.answer : [question.answer]
-  const resolved = [...new Set(list.map((entry) => resolveAnswer(entry, question.options)).filter((index): index is number => index != null))]
+  const resolved = [
+    ...new Set(
+      list.map((entry) => resolveAnswer(entry, rawTexts)).filter((index): index is number => index != null),
+    ),
+  ]
   const correct = resolved.length ? resolved.sort((a, b) => a - b) : null
-  return { ...question, options, correct, multi: (correct?.length ?? 0) > 1 }
+  return {
+    ...question,
+    options,
+    correct,
+    multi: (correct?.length ?? 0) > 1,
+    safeImage: safeBlockImageUrl(question.image),
+  }
 }
 
 function sameSet(a: number[], b: number[]): boolean {
@@ -102,8 +139,12 @@ const QuestionCard = memo(function QuestionCard({
 }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<number[]>([])
+  const [zoomImg, setZoomImg] = useState(false)
   const answered = picked !== undefined
   const verdict = verdictOf(question, picked)
+  const pickedOptExplain = answered && picked.length === 1 ? question.options[picked[0]]?.explanation : undefined
+  const explainText = pickedOptExplain || question.explanation
+
   return (
     <div className="uib-quiz-q" data-verdict={verdict}>
       <div className="uib-quiz-question">
@@ -111,6 +152,20 @@ const QuestionCard = memo(function QuestionCard({
         <span>{question.question}</span>
         {question.multi ? <span className="uib-chip">{t('timeline:uiBlock.multiSelect')}</span> : null}
       </div>
+      {question.safeImage ? (
+        <div className="uib-quiz-image-wrap">
+          <button type="button" onClick={() => setZoomImg(true)} className="uib-quiz-image-btn">
+            <img src={question.safeImage} alt={question.question} loading="lazy" />
+          </button>
+          <ImageLightbox
+            images={[{ src: question.safeImage, alt: question.question }]}
+            index={zoomImg ? 0 : null}
+            onIndexChange={(next) => {
+              if (next === null) setZoomImg(false)
+            }}
+          />
+        </div>
+      ) : null}
       <div className="uib-quiz-options" role={question.multi ? 'group' : 'radiogroup'}>
         {question.options.map((option, at) => {
           const chosen = answered ? picked.includes(at) : draft.includes(at)
@@ -137,13 +192,16 @@ const QuestionCard = memo(function QuestionCard({
               disabled={answered}
               onClick={() => {
                 if (!question.multi) onCommit(index, [at])
-                else setDraft((previous) => (previous.includes(at) ? previous.filter((item) => item !== at) : [...previous, at]))
+                else
+                  setDraft((previous) =>
+                    previous.includes(at) ? previous.filter((item) => item !== at) : [...previous, at],
+                  )
               }}
             >
               <span className="uib-quiz-letter" aria-hidden>
                 {state === 'correct' ? <Check /> : state === 'wrong' ? <X /> : String.fromCharCode(65 + at)}
               </span>
-              <span className="uib-quiz-opt-text">{option}</span>
+              <span className="uib-quiz-opt-text">{option.text}</span>
             </button>
           )
         })}
@@ -160,12 +218,12 @@ const QuestionCard = memo(function QuestionCard({
           </button>
         </div>
       ) : null}
-      {answered && (question.explanation || verdict !== 'answered') ? (
+      {answered && (explainText || verdict !== 'answered') ? (
         <div className="uib-quiz-explain" data-verdict={verdict}>
           {verdict === 'right' || verdict === 'wrong' ? (
             <strong>{verdict === 'right' ? t('timeline:uiBlock.correct') : t('timeline:uiBlock.incorrect')}</strong>
           ) : null}
-          {question.explanation ? <span>{question.explanation}</span> : null}
+          {explainText ? <span>{explainText}</span> : null}
         </div>
       ) : null}
     </div>
@@ -239,11 +297,24 @@ function ScoreSummary({
 function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
   const { t } = useTranslation()
   const questions = useMemo(() => props.questions.map(prepare), [props.questions])
-  const mode = props.mode ?? (questions.length > 3 ? 'step' : 'list')
+  const hasBranching = useMemo(
+    () => questions.some((q) => Boolean(q.next) || q.options.some((o) => Boolean(o.next))),
+    [questions],
+  )
+  const indexById = useMemo(() => {
+    const map = new Map<string, number>()
+    questions.forEach((q, idx) => {
+      if (q.id) map.set(q.id, idx)
+    })
+    return map
+  }, [questions])
+
+  const mode = hasBranching ? 'step' : (props.mode ?? (questions.length > 3 ? 'step' : 'list'))
   const [answers, setAnswers] = useBlockState<Record<number, number[]>>(blockKey, 'answers', {})
   const [step, setStepState] = useBlockState<number>(blockKey, 'step', 0)
-  // Question transitions animate only once the user navigates (history renders still).
+  const [trail, setTrail] = useBlockState<number[]>(blockKey, 'trail', [0])
   const navigated = useRef(false)
+
   const setStep = useCallback(
     (next: number) => {
       navigated.current = true
@@ -251,19 +322,41 @@ function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
     },
     [setStepState],
   )
+
+  const resolveNextIndex = useCallback(
+    (currentIdx: number, picked?: number[]): number => {
+      const q = questions[currentIdx]
+      const target =
+        (picked && picked.length === 1 ? q?.options[picked[0]]?.next : undefined) ?? q?.next
+      if (target) {
+        if (target.toLowerCase() === 'end') return questions.length
+        const mapped = indexById.get(target)
+        if (mapped !== undefined) return mapped
+      }
+      return currentIdx + 1
+    },
+    [indexById, questions],
+  )
+
   const commit = useCallback(
-    (index: number, picked: number[]) => setAnswers((previous) => (previous[index] ? previous : { ...previous, [index]: picked })),
+    (index: number, picked: number[]) =>
+      setAnswers((previous) => (previous[index] ? previous : { ...previous, [index]: picked })),
     [setAnswers],
   )
+
   const restart = () => {
     setAnswers({})
     setStep(0)
+    setTrail([0])
   }
 
   const answered = questions.filter((_, index) => answers[index]).length
   const graded = questions.filter((question) => question.correct).length
-  const score = questions.reduce((sum, question, index) => sum + (verdictOf(question, answers[index]) === 'right' ? 1 : 0), 0)
-  const done = answered === questions.length
+  const score = questions.reduce(
+    (sum, question, index) => sum + (verdictOf(question, answers[index]) === 'right' ? 1 : 0),
+    0,
+  )
+  const done = hasBranching ? step >= questions.length : answered === questions.length
 
   const actions = (
     <>
@@ -271,7 +364,13 @@ function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
         {done && graded ? t('timeline:uiBlock.score', { score, total: graded }) : `${answered}/${questions.length}`}
       </span>
       {answered > 0 ? (
-        <button type="button" className="uib-icon-btn" onClick={restart} aria-label={t('timeline:uiBlock.restart')} title={t('timeline:uiBlock.restart')}>
+        <button
+          type="button"
+          className="uib-icon-btn"
+          onClick={restart}
+          aria-label={t('timeline:uiBlock.restart')}
+          title={t('timeline:uiBlock.restart')}
+        >
           <RotateCcw />
         </button>
       ) : null}
@@ -294,16 +393,42 @@ function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
   }
 
   const current = Math.min(step, questions.length)
-  const onSummary = current >= questions.length && done
+  const onSummary = current >= questions.length && (hasBranching || done)
   const index = onSummary ? questions.length - 1 : Math.min(current, questions.length - 1)
-  const last = index === questions.length - 1
+  const nextIndex = resolveNextIndex(index, answers[index])
+  const last = nextIndex >= questions.length
+
+  const goBack = () => {
+    if (hasBranching && trail.length > 1) {
+      const nextTrail = trail.slice(0, -1)
+      setTrail(nextTrail)
+      setStep(nextTrail[nextTrail.length - 1] ?? 0)
+    } else if (index > 0) {
+      setStep(index - 1)
+    }
+  }
+
+  const goForward = () => {
+    if (hasBranching) {
+      setTrail((prev) => (prev[prev.length - 1] === nextIndex ? prev : [...prev, nextIndex]))
+    }
+    setStep(nextIndex)
+  }
+
   return (
     <BlockFrame title={props.title} animate={animate} actions={actions}>
       <div className="uib-quiz-progress" aria-hidden>
-        <span style={{ transform: `scaleX(${answered / questions.length})` }} />
+        <span style={{ transform: `scaleX(${Math.min(1, answered / questions.length)})` }} />
       </div>
       {onSummary ? (
-        <ScoreSummary questions={questions} answers={answers} score={score} graded={graded} onReview={setStep} onRestart={restart} />
+        <ScoreSummary
+          questions={questions}
+          answers={answers}
+          score={score}
+          graded={graded}
+          onReview={setStep}
+          onRestart={restart}
+        />
       ) : (
         <>
           <div key={index} className={navigated.current ? 'uib-step-in' : undefined}>
@@ -313,8 +438,8 @@ function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
             <button
               type="button"
               className="uib-icon-btn"
-              disabled={index === 0}
-              onClick={() => setStep(index - 1)}
+              disabled={hasBranching ? trail.length <= 1 : index === 0}
+              onClick={goBack}
               aria-label={t('timeline:uiBlock.prev')}
             >
               <ChevronLeft />
@@ -323,11 +448,16 @@ function Quiz({ props, blockKey, animate }: UIBlockComponentProps<QuizProps>) {
               {index + 1} / {questions.length}
             </span>
             {last ? (
-              <button type="button" className="uib-btn uib-btn-primary" disabled={!done} onClick={() => setStep(questions.length)}>
+              <button
+                type="button"
+                className="uib-btn uib-btn-primary"
+                disabled={!answers[index]}
+                onClick={goForward}
+              >
                 {t('timeline:uiBlock.seeResult')}
               </button>
             ) : (
-              <button type="button" className="uib-btn" disabled={!answers[index]} onClick={() => setStep(index + 1)}>
+              <button type="button" className="uib-btn" disabled={!answers[index]} onClick={goForward}>
                 {t('timeline:uiBlock.next')}
                 <ChevronRight />
               </button>

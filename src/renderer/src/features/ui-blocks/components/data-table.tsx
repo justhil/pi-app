@@ -1,12 +1,13 @@
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Search, X } from '@renderer/components/icons'
 import { useBlockState } from '../block-state'
 import { BlockFrame } from '../frame'
 import { v } from '../schema'
 import type { UIBlockComponentProps, UIBlockDefinition } from '../types'
+import { ImageLightbox, safeBlockImageUrl } from './image-gallery'
 
-type ColumnType = 'string' | 'number' | 'date' | 'boolean'
+type ColumnType = 'string' | 'number' | 'date' | 'boolean' | 'image'
 type Column = { key: string; label?: string; type?: ColumnType }
 type DataTableProps = {
   title?: string
@@ -22,7 +23,7 @@ const schema = v.object<DataTableProps>({
       v.object<Column>({
         key: v.string(),
         label: v.optional(v.string()),
-        type: v.optional(v.enum(['string', 'number', 'date', 'boolean'] as const)),
+        type: v.optional(v.enum(['string', 'number', 'date', 'boolean', 'image'] as const)),
       }),
     ),
   ),
@@ -59,8 +60,21 @@ function compare(a: unknown, b: unknown, type: ColumnType | undefined): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true })
 }
 
-function renderCell(value: unknown, type: ColumnType | undefined): ReactNode {
+function renderCell(
+  value: unknown,
+  type: ColumnType | undefined,
+  onPreviewImage?: (src: string) => void,
+): ReactNode {
   if (value == null || value === '') return <span className="uib-cell-empty">—</span>
+  if (type === 'image') {
+    const src = safeBlockImageUrl(String(value))
+    if (!src) return <span className="uib-cell-empty">—</span>
+    return (
+      <button type="button" className="uib-table-img-btn" onClick={() => onPreviewImage?.(src)} title="放大图片">
+        <img src={src} alt="" loading="lazy" className="uib-table-thumb" />
+      </button>
+    )
+  }
   if (type === 'boolean') {
     const yes = value === true || value === 'true' || value === 1
     return <span className="uib-bool" data-value={yes}>{yes ? <Check /> : <X />}</span>
@@ -82,9 +96,11 @@ function toCsv(columns: Column[], rows: Array<Record<string, unknown>>): string 
 const TableBody = memo(function TableBody({
   columns,
   rows,
+  onPreviewImage,
 }: {
   columns: Column[]
   rows: Array<Record<string, unknown>>
+  onPreviewImage: (src: string) => void
 }) {
   return (
     <tbody>
@@ -92,7 +108,7 @@ const TableBody = memo(function TableBody({
         <tr key={index}>
           {columns.map((column) => (
             <td key={column.key} data-type={column.type ?? 'string'}>
-              {renderCell(row[column.key], column.type)}
+              {renderCell(row[column.key], column.type, onPreviewImage)}
             </td>
           ))}
         </tr>
@@ -103,6 +119,7 @@ const TableBody = memo(function TableBody({
 
 function DataTable({ props, blockKey, animate }: UIBlockComponentProps<DataTableProps>) {
   const { t } = useTranslation()
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const columns = useMemo(
     () => (props.columns && props.columns.length ? props.columns : inferColumns(props.rows)),
     [props.columns, props.rows],
@@ -195,10 +212,17 @@ function DataTable({ props, blockKey, animate }: UIBlockComponentProps<DataTable
               })}
             </tr>
           </thead>
-          <TableBody columns={columns} rows={visible} />
+          <TableBody columns={columns} rows={visible} onPreviewImage={setPreviewSrc} />
         </table>
         {visible.length === 0 ? <div className="uib-empty">{t('timeline:uiBlock.noRows')}</div> : null}
       </div>
+      <ImageLightbox
+        images={previewSrc ? [{ src: previewSrc }] : []}
+        index={previewSrc ? 0 : null}
+        onIndexChange={(next) => {
+          if (next === null) setPreviewSrc(null)
+        }}
+      />
       {paged ? (
         <footer className="uib-pager">
           <span className="uib-muted">

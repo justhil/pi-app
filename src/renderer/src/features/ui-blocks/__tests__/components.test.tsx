@@ -74,7 +74,7 @@ describe('fallbacks', () => {
     const { unmount } = render(<UIBlockRuntime raw={'{"component":"globe","props":{}}'} streaming={false} />)
     expect(screen.getByText('Unknown component')).toBeInTheDocument()
     unmount()
-    render(<UIBlockRuntime raw={'{"component":"chart","props":{"type":"radar","series":[]}}'} streaming={false} />)
+    render(<UIBlockRuntime raw={'{"component":"chart","props":{"type":"treemap","series":[]}}'} streaming={false} />)
     expect(screen.getByText(/type: expected one of/)).toBeInTheDocument()
   })
 })

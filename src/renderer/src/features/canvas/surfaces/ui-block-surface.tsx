@@ -45,12 +45,14 @@ export function UiBlockSurface({ surface }: { surface: CanvasSurface }) {
   const [copied, setCopied] = useState(false)
   const raw = useMemo(
     () =>
-      JSON.stringify({
-        component: payload.component,
-        id: surface.id,
-        props: payload.props ?? {},
-      }),
-    [payload.component, payload.props, surface.id],
+      payload.raw?.trim()
+        ? payload.raw
+        : JSON.stringify({
+            component: payload.component,
+            id: surface.id,
+            props: payload.props ?? {},
+          }),
+    [payload.component, payload.props, payload.raw, surface.id],
   )
 
   const copyJson = () => {
@@ -96,7 +98,7 @@ export function UiBlockSurface({ surface }: { surface: CanvasSurface }) {
         {payload.caption ? (
           <p className="mb-2.5 text-[11.5px] leading-relaxed text-foreground-secondary">{payload.caption}</p>
         ) : null}
-        <UIBlockHost raw={raw} streaming={false} />
+        <UIBlockHost raw={raw} streaming={false} inCanvas />
       </div>
     </div>
   )

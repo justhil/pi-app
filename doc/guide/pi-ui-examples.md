@@ -176,3 +176,36 @@
   }
 }
 ```
+
+## 函数图像
+
+```pi-ui
+{
+  "component": "function-plot",
+  "id": "sine-and-circle",
+  "props": {
+    "title": "正弦曲线与单位圆",
+    "functions": [
+      { "expr": "y = sin(x)" },
+      { "expr": "x^2 + y^2 = 4" }
+    ],
+    "x": [-6, 6]
+  }
+}
+```
+
+## 图片集
+
+```pi-ui
+{
+  "component": "image-gallery",
+  "id": "ui-shots",
+  "props": {
+    "title": "界面快照对比",
+    "images": [
+      { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iOTAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iOTAiIGZpbGw9IiM1YjZmZDgiLz48L3N2Zz4=", "alt": "浅色版", "caption": "浅色模式预览" },
+      { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iOTAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iOTAiIGZpbGw9IiMxZTIwMjgiLz48L3N2Zz4=", "alt": "深色版", "caption": "深色模式预览" }
+    ]
+  }
+}
+```

@@ -1,12 +1,13 @@
-import { memo, useMemo, type CSSProperties } from 'react'
+import { memo, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from '@renderer/components/icons'
 import { useBlockState } from '../block-state'
 import { BlockFrame, Segmented } from '../frame'
 import { v } from '../schema'
 import type { UIBlockComponentProps, UIBlockDefinition } from '../types'
+import { safeBlockImageUrl, safeBlockLinkUrl } from './image-gallery'
 
-type CardItem = { title: string; summary?: string; tag?: string; source?: string; url?: string }
+type CardItem = { title: string; summary?: string; tag?: string; source?: string; url?: string; image?: string }
 type CardGridProps = { title?: string; items: CardItem[] }
 
 const schema = v.object<CardGridProps>({
@@ -18,20 +19,23 @@ const schema = v.object<CardGridProps>({
       tag: v.optional(v.string()),
       source: v.optional(v.string()),
       url: v.optional(v.string()),
+      image: v.optional(v.string()),
     }),
     { min: 1, max: 60 },
   ),
 })
 
-function safeUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined
-  return /^https?:\/\//i.test(url.trim()) ? url.trim() : undefined
-}
-
 const Card = memo(function Card({ item, index, animate }: { item: CardItem; index: number; animate: boolean }) {
-  const href = safeUrl(item.url)
+  const href = safeBlockLinkUrl(item.url)
+  const imgSrc = safeBlockImageUrl(item.image)
+  const [imgBroken, setImgBroken] = useState(false)
   const body = (
     <>
+      {imgSrc && !imgBroken ? (
+        <div className="uib-cardgrid-cover">
+          <img src={imgSrc} alt={item.title} loading="lazy" onError={() => setImgBroken(true)} />
+        </div>
+      ) : null}
       <div className="uib-cardgrid-title">{item.title}</div>
       {item.summary ? <p className="uib-cardgrid-summary">{item.summary}</p> : null}
       {item.tag || item.source || href ? (

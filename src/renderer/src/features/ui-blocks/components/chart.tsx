@@ -10,7 +10,17 @@ import { arcPath, labelStep, linearScale, niceScale, seriesExtent, stackSeries }
 
 type SeriesType = 'line' | 'bar' | 'area'
 type ChartSeries = { name: string; data: Array<number | null>; type?: SeriesType; axis?: 'left' | 'right' }
-type ChartType = 'line' | 'bar' | 'area' | 'horizontal-bar' | 'pie' | 'donut' | 'scatter'
+type ChartType =
+  | 'line'
+  | 'bar'
+  | 'area'
+  | 'horizontal-bar'
+  | 'pie'
+  | 'donut'
+  | 'scatter'
+  | 'radar'
+  | 'funnel'
+  | 'radial'
 type ChartProps = {
   title?: string
   type: ChartType
@@ -19,12 +29,13 @@ type ChartProps = {
   unit?: string
   rightUnit?: string
   stacked?: boolean
+  percent?: boolean
   height?: number
 }
 
 const schema = v.object<ChartProps>({
   title: v.optional(v.string()),
-  type: v.enum(['line', 'bar', 'area', 'horizontal-bar', 'pie', 'donut', 'scatter'] as const),
+  type: v.enum(['line', 'bar', 'area', 'horizontal-bar', 'pie', 'donut', 'scatter', 'radar', 'funnel', 'radial'] as const),
   x: v.optional(v.array(v.string(), { max: 500 })),
   series: v.array(
     v.object<ChartSeries>({
@@ -38,6 +49,7 @@ const schema = v.object<ChartProps>({
   unit: v.optional(v.string()),
   rightUnit: v.optional(v.string()),
   stacked: v.optional(v.boolean()),
+  percent: v.optional(v.boolean()),
   height: v.optional(v.number()),
 })
 
@@ -606,14 +618,292 @@ const PieChart = memo(function PieChart({
   )
 })
 
+/* ─────────────── Radar (multi-axis polygon) ─────────────── */
+
+const RadarChart = memo(function RadarChart({
+  props,
+  width,
+  visible,
+}: {
+  props: ChartProps
+  width: number
+  visible: IndexedSeries[]
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const count = Math.max(3, props.x?.length ?? 0, ...visible.map((s) => s.data.length))
+  const labels = useMemo(
+    () => Array.from({ length: count }, (_, i) => props.x?.[i] ?? `#${i + 1}`),
+    [count, props.x],
+  )
+  const maxVal = useMemo(() => {
+    let m = 0
+    for (const s of visible) {
+      for (const v of s.data) {
+        if (typeof v === 'number' && Number.isFinite(v) && v > m) m = v
+      }
+    }
+    return m > 0 ? m : 1
+  }, [visible])
+
+  const size = Math.max(200, Math.min(280, Math.round(width * 0.56)))
+  const cx = size / 2
+  const cy = size / 2
+  const radius = size * 0.34
+  const angleFor = (i: number) => (Math.PI * 2 * i) / count - Math.PI / 2
+  const pointAt = (i: number, ratio: number): [number, number] => {
+    const a = angleFor(i)
+    return [cx + Math.cos(a) * radius * ratio, cy + Math.sin(a) * radius * ratio]
+  }
+  const levels = [0.25, 0.5, 0.75, 1]
+
+  return (
+    <div className="uib-radar">
+      <svg width={size} height={size} className="uib-chart-svg" role="img" aria-label={props.title || '雷达图'}>
+        {levels.map((lv) => {
+          const pts = Array.from({ length: count }, (_, i) => pointAt(i, lv).map((n) => n.toFixed(1)).join(',')).join(' ')
+          return <polygon key={lv} points={pts} fill="none" className="uib-grid" />
+        })}
+        {labels.map((label, i) => {
+          const [ex, ey] = pointAt(i, 1)
+          const [lx, ly] = pointAt(i, 1.18)
+          const anchor = lx < cx - 8 ? 'end' : lx > cx + 8 ? 'start' : 'middle'
+          return (
+            <g key={label}>
+              <line x1={cx} y1={cy} x2={ex} y2={ey} className="uib-grid" />
+              <text
+                x={lx}
+                y={ly}
+                textAnchor={anchor}
+                dominantBaseline="central"
+                className="uib-axis"
+                onPointerEnter={() => setHoverIdx(i)}
+                onPointerLeave={() => setHoverIdx(null)}
+              >
+                {label}
+              </text>
+            </g>
+          )
+        })}
+        {visible.map((series) => {
+          const color = seriesColor(series.index)
+          const coords = Array.from({ length: count }, (_, i) => {
+            const raw = series.data[i]
+            const ratio = typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, raw) / maxVal : 0
+            return pointAt(i, ratio)
+          })
+          const pts = coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+          return (
+            <g key={series.name}>
+              <polygon points={pts} fill={color} fillOpacity={0.16} stroke={color} strokeWidth={1.8} />
+              {coords.map(([x, y], i) => (
+                <circle
+                  key={i}
+                  cx={x}
+                  cy={y}
+                  r={hoverIdx === i ? 4.5 : 3}
+                  fill={color}
+                  onPointerEnter={() => setHoverIdx(i)}
+                  onPointerLeave={() => setHoverIdx(null)}
+                />
+              ))}
+            </g>
+          )
+        })}
+      </svg>
+      {hoverIdx != null ? (
+        <div className="uib-radar-readout">
+          <div className="uib-tooltip-head">{labels[hoverIdx]}</div>
+          {visible.map((s) =>
+            s.data[hoverIdx] == null ? null : (
+              <TooltipRow key={s.name} color={seriesColor(s.index)} label={s.name} value={formatFull(s.data[hoverIdx]!, props.unit)} />
+            ),
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
+/* ─────────────── Funnel (conversion stages) ─────────────── */
+
+const FunnelChart = memo(function FunnelChart({ props, width }: { props: ChartProps; width: number }) {
+  const [hover, setHover] = useState<number | null>(null)
+  const items = useMemo(() => {
+    const perSeries = props.series.length > 1 && props.series.every((s) => s.data.length <= 1)
+    const raw = perSeries
+      ? props.series.map((s) => ({ label: s.name, value: Math.max(0, s.data[0] ?? 0) }))
+      : (props.series[0]?.data ?? []).map((val, i) => ({
+          label: props.x?.[i] ?? `阶段 ${i + 1}`,
+          value: Math.max(0, val ?? 0),
+        }))
+    return raw.map((item, i) => ({ ...item, color: seriesColor(i) }))
+  }, [props.series, props.x])
+
+  const max = Math.max(...items.map((i) => i.value), 1)
+  const first = items[0]?.value || 1
+  const svgW = Math.max(240, width)
+  const rowH = 34
+  const gap = 4
+  const svgH = Math.max(80, items.length * (rowH + gap) + 8)
+  const funnelMaxW = Math.min(svgW * 0.62, 360)
+  const centerX = funnelMaxW / 2 + 8
+
+  return (
+    <div className="uib-funnel">
+      <svg width={svgW} height={svgH} className="uib-chart-svg" role="img" aria-label={props.title || '漏斗图'}>
+        {items.map((item, i) => {
+          const topW = Math.max(28, (item.value / max) * funnelMaxW)
+          const nextVal = items[i + 1]?.value ?? item.value * 0.72
+          const botW = Math.max(24, (nextVal / max) * funnelMaxW)
+          const y = i * (rowH + gap) + 4
+          const pts = [
+            `${(centerX - topW / 2).toFixed(1)},${y}`,
+            `${(centerX + topW / 2).toFixed(1)},${y}`,
+            `${(centerX + botW / 2).toFixed(1)},${y + rowH}`,
+            `${(centerX - botW / 2).toFixed(1)},${y + rowH}`,
+          ].join(' ')
+          const pct = Math.round((item.value / first) * 100)
+          const dimmed = hover != null && hover !== i
+          return (
+            <g
+              key={item.label}
+              opacity={dimmed ? 0.45 : 1}
+              onPointerEnter={() => setHover(i)}
+              onPointerLeave={() => setHover(null)}
+            >
+              <polygon points={pts} fill={item.color} fillOpacity={0.86} />
+              <text x={centerX} y={y + rowH / 2} textAnchor="middle" dominantBaseline="central" className="uib-funnel-val">
+                {formatCompact(item.value)}
+              </text>
+              <text x={funnelMaxW + 20} y={y + rowH / 2 - 5} dominantBaseline="central" className="uib-funnel-label">
+                {item.label}
+              </text>
+              <text x={funnelMaxW + 20} y={y + rowH / 2 + 9} dominantBaseline="central" className="uib-axis">
+                {formatFull(item.value, props.unit)} · {pct}%
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+})
+
+/* ─────────────── Radial (concentric progress arcs) ─────────────── */
+
+const RadialChart = memo(function RadialChart({ props, width }: { props: ChartProps; width: number }) {
+  const [hover, setHover] = useState<number | null>(null)
+  const items = useMemo(() => {
+    const perSeries = props.series.length > 1 && props.series.every((s) => s.data.length <= 1)
+    const raw = perSeries
+      ? props.series.map((s) => ({ label: s.name, value: Math.max(0, s.data[0] ?? 0) }))
+      : (props.series[0]?.data ?? []).map((val, i) => ({
+          label: props.x?.[i] ?? `#${i + 1}`,
+          value: Math.max(0, val ?? 0),
+        }))
+    return raw.slice(0, 8).map((item, i) => ({ ...item, color: seriesColor(i) }))
+  }, [props.series, props.x])
+
+  const max = Math.max(100, ...items.map((i) => i.value))
+  const size = Math.max(150, Math.min(220, Math.round(width * 0.44)))
+  const cx = size / 2
+  const cy = size / 2
+  const strokeW = Math.max(6, Math.min(11, Math.floor((size * 0.36) / Math.max(items.length, 1))))
+  const gap = 3
+
+  return (
+    <div className="uib-pie">
+      <svg width={size} height={size} className="uib-chart-svg" role="img" aria-label={props.title || '环形进度图'}>
+        {items.map((item, i) => {
+          const r = size / 2 - 10 - i * (strokeW + gap)
+          if (r < 14) return null
+          const circ = 2 * Math.PI * r
+          const ratio = Math.min(1, item.value / max)
+          const dimmed = hover != null && hover !== i
+          return (
+            <g
+              key={item.label}
+              opacity={dimmed ? 0.35 : 1}
+              onPointerEnter={() => setHover(i)}
+              onPointerLeave={() => setHover(null)}
+            >
+              <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--uib-sunken)" strokeWidth={strokeW} />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill="none"
+                stroke={item.color}
+                strokeWidth={strokeW}
+                strokeLinecap="round"
+                strokeDasharray={`${(circ * ratio).toFixed(2)} ${circ.toFixed(2)}`}
+                transform={`rotate(-90 ${cx} ${cy})`}
+              />
+            </g>
+          )
+        })}
+        {hover != null && items[hover] ? (
+          <g pointerEvents="none">
+            <text x={cx} y={cy - 3} textAnchor="middle" className="uib-pie-total">
+              {formatCompact(items[hover].value)}
+            </text>
+            <text x={cx} y={cy + 13} textAnchor="middle" className="uib-axis">
+              {items[hover].label}
+            </text>
+          </g>
+        ) : null}
+      </svg>
+      <ul className="uib-pie-legend">
+        {items.map((item, i) => (
+          <li
+            key={item.label}
+            data-dim={hover != null && hover !== i ? 'true' : undefined}
+            onPointerEnter={() => setHover(i)}
+            onPointerLeave={() => setHover(null)}
+          >
+            <span className="uib-tooltip-dot" style={{ background: item.color }} />
+            <span className="uib-pie-label">{item.label}</span>
+            <span className="uib-pie-value">{formatFull(item.value, props.unit)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+})
+
+function normalizePercentProps(props: ChartProps): ChartProps {
+  if (!props.stacked || !props.percent || props.series.length === 0) return props
+  const len = Math.max(...props.series.map((s) => s.data.length), 0)
+  const totals = Array.from({ length: len }, (_, i) =>
+    props.series.reduce((sum, s) => sum + Math.max(0, s.data[i] ?? 0), 0),
+  )
+  return {
+    ...props,
+    unit: '%',
+    series: props.series.map((s) => ({
+      ...s,
+      data: s.data.map((val, i) => {
+        if (val == null) return null
+        const tot = totals[i]
+        return tot > 0 ? Number(((Math.max(0, val) / tot) * 100).toFixed(1)) : 0
+      }),
+    })),
+  }
+}
+
 /* ─────────────── Block ─────────────── */
 
 function Chart({ props, blockKey, animate }: UIBlockComponentProps<ChartProps>) {
   const [containerRef, width] = useElementWidth()
   const maskId = `uib-mask-${useId().replace(/[^\w-]/g, '')}`
   const [hidden, setHidden] = useBlockState<string[]>(blockKey, 'hidden', [])
-  const pie = props.type === 'pie' || props.type === 'donut'
-  const indexed = useMemo(() => props.series.map((entry, index) => ({ ...entry, index })), [props.series])
+  const normalizedProps = useMemo(() => normalizePercentProps(props), [props])
+  const pie = normalizedProps.type === 'pie' || normalizedProps.type === 'donut'
+  const singleSeriesKind = pie || normalizedProps.type === 'funnel' || normalizedProps.type === 'radial'
+  const indexed = useMemo(
+    () => normalizedProps.series.map((entry, index) => ({ ...entry, index })),
+    [normalizedProps.series],
+  )
   const visible = useMemo(() => {
     const shown = indexed.filter((entry) => !hidden.includes(entry.name))
     return shown.length ? shown : indexed
@@ -622,15 +912,23 @@ function Chart({ props, blockKey, animate }: UIBlockComponentProps<ChartProps>) 
     setHidden((previous) => (previous.includes(name) ? previous.filter((item) => item !== name) : [...previous, name]))
 
   return (
-    <BlockFrame title={props.title} animate={animate}>
-      {!pie && props.series.length > 1 ? <Legend series={props.series} hidden={hidden} onToggle={toggle} /> : null}
+    <BlockFrame title={normalizedProps.title} animate={animate}>
+      {!singleSeriesKind && normalizedProps.series.length > 1 ? (
+        <Legend series={normalizedProps.series} hidden={hidden} onToggle={toggle} />
+      ) : null}
       <div ref={containerRef} className="uib-chart">
         {pie ? (
-          <PieChart props={props} width={width} animate={animate} maskId={maskId} />
-        ) : props.type === 'horizontal-bar' ? (
-          <HorizontalBarChart props={props} width={width} visible={visible} animate={animate} />
+          <PieChart props={normalizedProps} width={width} animate={animate} maskId={maskId} />
+        ) : normalizedProps.type === 'radar' ? (
+          <RadarChart props={normalizedProps} width={width} visible={visible} />
+        ) : normalizedProps.type === 'funnel' ? (
+          <FunnelChart props={normalizedProps} width={width} />
+        ) : normalizedProps.type === 'radial' ? (
+          <RadialChart props={normalizedProps} width={width} />
+        ) : normalizedProps.type === 'horizontal-bar' ? (
+          <HorizontalBarChart props={normalizedProps} width={width} visible={visible} animate={animate} />
         ) : (
-          <CartesianChart props={props} width={width} visible={visible} animate={animate} />
+          <CartesianChart props={normalizedProps} width={width} visible={visible} animate={animate} />
         )}
       </div>
     </BlockFrame>

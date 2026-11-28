@@ -2,13 +2,16 @@ import type { SkeletonKind } from './types'
 
 const KIND_BY_COMPONENT: Record<string, SkeletonKind> = {
   chart: 'chart',
+  'function-plot': 'chart',
   'stat-grid': 'cards',
   'card-grid': 'cards',
+  'image-gallery': 'cards',
   'data-table': 'rows',
   gantt: 'rows',
   diff: 'rows',
   quiz: 'block',
   'decision-tree': 'block',
+  panel: 'block',
 }
 
 export function skeletonKindFor(component: string | null): SkeletonKind {

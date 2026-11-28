@@ -79,6 +79,8 @@ export interface CanvasDelegationPayload {
 export interface CanvasUiBlockPayload {
   component: string
   props: Record<string, unknown>
+  /** Optional full raw pi-ui JSON envelope (enables Live Panel state/computed/children inside Canvas). */
+  raw?: string
   caption?: string
 }
 
