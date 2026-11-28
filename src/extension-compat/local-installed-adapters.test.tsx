@@ -197,7 +197,7 @@ describe('newly installed local plugin adapters & desktop UI primitives', () => 
     expect(screen.getByText(/推荐|Recommended|Рекомендуется/)).toBeInTheDocument()
 
     // Switch to Q2 (free-text question with options: []) in the inline card and type draft
-    fireEvent.click(screen.getByRole('button', { name: '补充说明' }))
+    fireEvent.click(screen.getByRole('button', { name: /补充说明/ }))
     expect(screen.getByText('例如凌晨低峰期')).toBeInTheDocument()
     const inlineArea = screen.getByPlaceholderText(/输入你的答案|Type your answer|Введите ответ/)
     fireEvent.change(inlineArea, { target: { value: '周日凌晨 02:00' } })

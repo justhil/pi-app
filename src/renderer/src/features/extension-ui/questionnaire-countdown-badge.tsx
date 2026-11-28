@@ -14,8 +14,8 @@ function formatRemaining(seconds: number): string {
 }
 
 /**
- * Live 1Hz countdown pill for questionnaires / dialogs carrying an autopilot or safety deadline
- * (e.g. `pi-decide` auto/deadline policies). Highlights in amber during the final 15 seconds.
+ * Quiet neutral tabular countdown pill matching pi-app status chrome.
+ * Shifts to warm amber only during the final 15 seconds.
  */
 export function QuestionnaireCountdownBadge({
   deadlineAt,
@@ -54,11 +54,11 @@ export function QuestionnaireCountdownBadge({
         time: formatRemaining(remainingSec),
       })}
       className={cn(
-        'relative inline-flex shrink-0 items-center gap-1 overflow-hidden rounded-full border font-mono tabular-nums transition-colors',
-        compact ? 'px-1.5 py-0.5 text-[10.5px] leading-4' : 'px-2 py-0.5 text-[11px] leading-4',
+        'relative inline-flex shrink-0 items-center gap-1 overflow-hidden rounded-md border font-mono tabular-nums transition-colors',
+        compact ? 'h-5 px-1.5 text-[10.5px] leading-none' : 'h-5.5 px-2 py-0.5 text-[11px] leading-4',
         urgent
-          ? 'border-amber-500/50 bg-amber-500/12 text-amber-700 dark:text-amber-300'
-          : 'border-border/75 bg-muted/60 text-muted-foreground',
+          ? 'border-amber-500/45 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : 'border-border/65 bg-[var(--bg-2)]/65 text-foreground-secondary',
       )}
     >
       {progressRatio !== undefined && (
@@ -67,11 +67,11 @@ export function QuestionnaireCountdownBadge({
           style={{ transform: `scaleX(${progressRatio.toFixed(3)})` }}
           className={cn(
             'pointer-events-none absolute inset-y-0 left-0 w-full origin-left transition-transform duration-500 ease-linear',
-            urgent ? 'bg-amber-500/15' : 'bg-[var(--brand)]/10',
+            urgent ? 'bg-amber-500/15' : 'bg-foreground/[0.06]',
           )}
         />
       )}
-      <Clock className="relative h-3 w-3 shrink-0" />
+      <Clock className="relative h-2.5 w-2.5 shrink-0 opacity-75" />
       <span className="relative">
         {compact
           ? formatRemaining(remainingSec)

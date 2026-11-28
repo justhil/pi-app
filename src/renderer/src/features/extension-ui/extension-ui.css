@@ -1,4 +1,49 @@
-/* Extension dialogs: crisp non-overshooting transitions and option rows. */
+/* Extension dialogs & inline questionnaire card: aligned with pi-app Composer shell tokens. */
+.composer-inline-question-shell {
+  container-type: inline-size;
+  border-radius: var(--composer-shell-radius, 14px);
+  background: var(--bg-base);
+  border: 1px solid var(--composer-shell-border);
+  box-shadow: var(--composer-shell-shadow);
+  animation: questionnaire-inline-in var(--motion-normal, 160ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  transition:
+    border-color var(--motion-normal, 160ms) var(--motion-ease, ease),
+    box-shadow var(--motion-normal, 160ms) var(--motion-ease, ease);
+}
+
+.composer-inline-question-shell:focus-within {
+  border-color: var(--composer-shell-border-hover);
+}
+
+.composer-inline-question-bar {
+  background: color-mix(in srgb, var(--bg-1) 76%, var(--bg-base));
+}
+
+.composer-inline-question-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+@container (min-width: 540px) {
+  .composer-inline-question-split[data-has-preview='true'] {
+    grid-template-columns: minmax(220px, 1.12fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+@keyframes questionnaire-inline-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .questionnaire-step {
   animation: questionnaire-step-in var(--motion-fast, 130ms) var(--motion-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
 }
@@ -38,15 +83,17 @@
 }
 @keyframes questionnaire-reveal {
   from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: none; }
+  to { transform: none; opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .composer-inline-question-shell,
   .questionnaire-step,
   .questionnaire-reveal,
   .questionnaire-option[aria-checked='true'] .questionnaire-check {
     animation: none !important;
   }
+  .composer-inline-question-shell,
   .questionnaire-option,
   .questionnaire-option .questionnaire-indicator {
     transition: none !important;
