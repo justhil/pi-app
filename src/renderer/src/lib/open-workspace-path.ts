@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import { normalizeWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
 
 const SOURCE_LOCATION_SUFFIX = /(\.[^/\\:?#]+):(\d+)(?::\d+)?(?=[?#]|$)/
@@ -81,8 +82,7 @@ export function openWorkspaceRelativePath(relPath: string, line?: number): boole
   if (!raw || !store.currentWorkspace) return false
   // Keep the request until the lazily loaded Files panel mounts.
   useUIStore.setState({ workspaceFileToOpen: { workspaceRoot: store.currentWorkspace, rel: raw, ...(line ? { line } : {}) } })
-  store.setActivePanel('files')
-  store.revealRightPanel()
+  showRightPanelTab('files')
   return true
 }
 
@@ -91,8 +91,7 @@ export function openReviewGitForPath(relPath: string): void {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
-  store.setActivePanel('review')
-  store.revealRightPanel()
+  showRightPanelTab('review')
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'git' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {
@@ -106,8 +105,7 @@ export function openReviewSessionForPath(relPath: string): void {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
-  store.setActivePanel('review')
-  store.revealRightPanel()
+  showRightPanelTab('review')
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'session' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {

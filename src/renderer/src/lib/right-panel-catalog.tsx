@@ -10,6 +10,7 @@ import {
   ListTree,
   Network,
   PanelRight,
+  Terminal,
   normalizeLegacyIconName,
   resolveAppIcon,
   type AppIconComponent,
@@ -28,6 +29,7 @@ const CORE_PANEL_ICONS: Record<string, AppIconComponent> = {
   worktrees: FolderGit2,
   github: GitFork,
   browser: Globe,
+  ssh: Terminal,
   intercom: Network,
 }
 

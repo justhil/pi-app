@@ -29,10 +29,9 @@ import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
-import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
+import { toggleBrowserPanelFromShortcut } from '@renderer/stores/panel-intent-store'
 import { buildAllRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
-import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 import { RightDock } from '@renderer/features/shell/right-dock'
 import { useCanvasEvents } from '@renderer/features/canvas/use-canvas-events'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
@@ -58,6 +57,7 @@ import {
 import { hydrateSnippetsFromDisk } from '@renderer/lib/theme/render-fx-engine'
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
+import { GlobalTooltipHost } from '@renderer/components/ui/global-tooltip-host'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
 import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
 import { StatusBar } from '@renderer/features/shell/status-bar'
@@ -116,6 +116,9 @@ const LiveThemeStudio = lazy(() =>
 const ProjectHomeView = lazy(() =>
   import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })),
 )
+const PluginsHubPage = lazy(() =>
+  import('@renderer/features/plugins/plugins-hub-page').then((m) => ({ default: m.PluginsHubPage })),
+)
 
 function ShellSuspenseFallback({ label }: { label: string }) {
   return <EmptyState compact title={label} className="min-h-[12rem]" />
@@ -125,12 +128,16 @@ if ((window as unknown as { piDesktop?: { e2e?: boolean } }).piDesktop?.e2e) {
   ;(window as unknown as { __piE2E?: unknown }).__piE2E = { useUIStore, useExtensionUIStore, ipcClient }
 }
 
+/** Best-effort startup work: a failure must not break the shell, but it should leave a trace. */
+const logFailure = (what: string) => (error: unknown) => console.warn(`[App] ${what} failed`, error)
+
 performance.mark('pi:app-module')
 
 export default function App() {
   if (!performance.getEntriesByName('pi:app-render').length) performance.mark('pi:app-render')
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
+  const [mainPage, setMainPage] = useState<'chat' | 'plugins'>('chat')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [studioOpen, setStudioOpen] = useState(false)
@@ -142,12 +149,7 @@ export default function App() {
       const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
       if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        const hidden = isRightPanelHidden({
-          collapsed: useUIStore.getState().rightPanelCollapsed,
-          expandedOnNarrow: useUIStore.getState().rightPanelExpandedOnNarrow,
-          windowWidth: window.innerWidth,
-        })
-        usePanelIntentStore.getState().toggleRightPanelTab('browser', !hidden)
+        toggleBrowserPanelFromShortcut()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -163,7 +165,7 @@ export default function App() {
   const browserWasEnabled = useRef(browserPanelEnabled)
   useEffect(() => {
     // Turning the experimental browser panel off releases every tab in Main.
-    if (browserWasEnabled.current && !browserPanelEnabled) void ipcClient.invoke('browser.shutdown').catch(() => {})
+    if (browserWasEnabled.current && !browserPanelEnabled) void ipcClient.invoke('browser.shutdown').catch(logFailure('browser.shutdown'))
     browserWasEnabled.current = browserPanelEnabled
   }, [browserPanelEnabled])
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
@@ -177,9 +179,13 @@ export default function App() {
   useTerminalShortcut()
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
-  const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
+  const canUseTree = view === 'main' && mainPage === 'chat' && (!!currentWorkspace || ephemeralSandboxDraft)
   const { treeOpen, setTreeOpen, forkOpen, setForkOpen } = useDoubleEscapeTree(canUseTree)
   const [forkSource, setForkSource] = useState<ForkSource | undefined>()
+
+  useEffect(() => {
+    setMainPage('chat')
+  }, [currentWorkspace, historySessionFile, ephemeralSandboxDraft])
 
   useEffect(() => {
     if (ephemeralSandboxDraft) {
@@ -237,11 +243,11 @@ export default function App() {
     markExtensionNotifyAppReady()
     useExtensionUIStore.getState().resetForSessionContext()
     void ensureWorkspaceWorkerOnBoot()
-    void hydrateThemeFromSettings().catch(() => {})
-    void hydrateCustomThemeFromSettings().catch(() => {})
-    void hydrateCustomCssOverrideFromSettings().catch(() => {})
-    void hydrateSnippetsFromDisk().catch(() => {})
-    void hydrateBackgroundFromSettings().catch(() => {})
+    void hydrateThemeFromSettings().catch(logFailure('theme hydration'))
+    void hydrateCustomThemeFromSettings().catch(logFailure('custom theme hydration'))
+    void hydrateCustomCssOverrideFromSettings().catch(logFailure('custom CSS hydration'))
+    void hydrateSnippetsFromDisk().catch(logFailure('CSS snippets hydration'))
+    void hydrateBackgroundFromSettings().catch(logFailure('background hydration'))
     applyUiZoom(readUiZoom())
   }, [])
 
@@ -249,9 +255,7 @@ export default function App() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      void loadNormalizedRightPanelPrefs()
-        .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
-        .catch(() => {})
+      // Right-panel prefs load in the workspace effect below (it also runs on mount).
       void ipcClient
         .invoke('settings.get', { key: 'timelineMaxAutoExpandedTools' })
         .then((res) => {
@@ -260,13 +264,13 @@ export default function App() {
             .getState()
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
-        .catch(() => {})
+        .catch(logFailure('timelineMaxAutoExpandedTools load'))
       void ipcClient
         .invoke('settings.get', { key: 'timelineVisibleTurns' })
         .then((res) => {
           useUIStore.getState().setTimelineVisibleTurns(normalizeTimelineVisibleTurns(res?.settings?.timelineVisibleTurns))
         })
-        .catch(() => {})
+        .catch(logFailure('timelineVisibleTurns load'))
       void ipcClient
         .invoke('settings.get', { key: 'timelineUserMessageStyle' })
         .then((res) => {
@@ -274,7 +278,7 @@ export default function App() {
           useUIStore.getState().setTimelineUserMessageStyle(style)
           applyUserMessageStyleToDocument(style)
         })
-        .catch(() => {})
+        .catch(logFailure('timelineUserMessageStyle load'))
       void ipcClient
         .invoke('settings.get', { key: 'uiCustomization' })
         .then((res) => {
@@ -282,7 +286,7 @@ export default function App() {
           useUIStore.getState().setUiCustomization(cfg)
           applyUiCustomizationToDocument(cfg)
         })
-        .catch(() => {})
+        .catch(logFailure('uiCustomization load'))
       prefetchAvailableModels()
       // The composer menus open from a chip click; load their code ahead so the first open is instant.
       window.setTimeout(() => {
@@ -291,7 +295,7 @@ export default function App() {
       }, 1500)
     })
     return () => cancelAnimationFrame(frame)
-  }, [applyRightPanelRuntime])
+  }, [])
 
   useEffect(() => {
     activateAdapterWorkspace(currentWorkspace)
@@ -299,7 +303,7 @@ export default function App() {
     let active = true
     void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
       if (active) applyRightPanelRuntime(catalog, prefs, order)
-    }).catch(() => {})
+    }).catch(logFailure('right panel prefs load'))
     return () => { active = false }
   }, [currentWorkspace, applyRightPanelRuntime])
 
@@ -318,7 +322,7 @@ export default function App() {
         const workspace = useUIStore.getState().currentWorkspace
         void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
           if (useUIStore.getState().currentWorkspace === workspace) useUIStore.getState().applyRightPanelRuntime(catalog, prefs, order)
-        }).catch(() => {})
+        }).catch(logFailure('right panel prefs reload'))
         if (event.type === 'sdk-runtime-changed') void handleSdkRuntimeChanged()
         return
       }
@@ -344,7 +348,7 @@ export default function App() {
     void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {
       fetchWorkerLiveSnapshot()
         .then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap))
-        .catch(() => {})
+        .catch(logFailure('worker live snapshot'))
     })
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
@@ -363,6 +367,7 @@ export default function App() {
     const onOpenSession = (e: Event) => {
       const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string; entryId?: string }>).detail
       setView('main')
+      setMainPage('chat')
       void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile }).then(
         () => {
           if (d?.entryId && !d.entryId.startsWith('@line:')) {
@@ -411,6 +416,7 @@ export default function App() {
     try {
       const res = await window.piDesktop.invoke('ipc:dialog:openDirectory')
       if (res?.path) {
+        setMainPage('chat')
         await activateWorkspace(res.path, { preferHome: true })
       }
     } catch (e) {
@@ -418,7 +424,6 @@ export default function App() {
     }
   }
 
-  const recentProjects = useUIStore((s) => s.recentProjects)
   const fileChanges = useUIStore((s) => s.fileChanges)
   const { gitData } = useReviewGitData({
     enabled: !!currentWorkspace,
@@ -465,10 +470,6 @@ export default function App() {
     }
   }
 
-  const handleSelectProject = async (path: string) => {
-    await activateWorkspace(path, { preferHome: true })
-  }
-
   const paletteAndShortcuts = (
     <>
       <CommandPalette
@@ -506,6 +507,7 @@ export default function App() {
           </div>
         </div>
         {paletteAndShortcuts}
+        <GlobalTooltipHost />
         <AppUpdateHost />
         <CloseDecisionDialog />
       </ErrorBoundary>
@@ -539,59 +541,59 @@ export default function App() {
                   <ProjectSidebar
                     onOpenProject={handleOpenProject}
                     openProjectLabel={t('sidebar.openProject')}
+                    activeMainPage={mainPage}
+                    onSelectMainPage={setMainPage}
                   />
                 </div>
                 <SidebarActiveSessionsDrawer />
               </Sidebar>
             }
             center={
-              <SplitView>
+              mainPage === 'plugins' ? (
                 <MainColumnWithTimelineScroll className="h-full">
-                  <MainChatHeader
-                    projectName={projectName}
-                    sessionTitle={activeSessionTitle}
-                    gitBranch={gitData?.isRepo !== false ? gitData?.branch : undefined}
-                    gitDiffStat={gitDiffStat}
-                    isHome={showHome}
-                    onForkCurrent={
-                      currentSessionId && historySessionFile && currentWorkspace
-                        ? () => {
-                            setForkSource({
-                              sessionFile: historySessionFile,
-                              workspacePath: currentWorkspace,
-                            })
-                            setForkOpen(true)
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                    {showHome ? (
-                      <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
-                        <ProjectHomeView
-                          projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
-                          subtitle={
-                            ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined
-                          }
-                          recentProjects={recentProjects}
-                          currentWorkspace={currentWorkspace}
-                          ephemeralSandboxDraft={ephemeralSandboxDraft}
-                          onSelectProject={(p) => void handleSelectProject(p)}
-                          onOpenProject={handleOpenProject}
-                        />
-                      </Suspense>
-                    ) : (
-                      <Timeline />
-                    )}
-                    <ComposerDock heroMode={showHome}>
-                      {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
-                      <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
-                      <Composer />
-                    </ComposerDock>
-                    {!showHome ? <TimelineScrubber /> : null}
-                  </div>
+                  <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
+                    <PluginsHubPage />
+                  </Suspense>
                 </MainColumnWithTimelineScroll>
-              </SplitView>
+              ) : (
+                <SplitView>
+                  <MainColumnWithTimelineScroll className="h-full">
+                    <MainChatHeader
+                      projectName={projectName}
+                      sessionTitle={activeSessionTitle}
+                      gitBranch={gitData?.isRepo !== false ? gitData?.branch : undefined}
+                      gitDiffStat={gitDiffStat}
+                      isHome={showHome}
+                      onForkCurrent={
+                        currentSessionId && historySessionFile && currentWorkspace
+                          ? () => {
+                              setForkSource({
+                                sessionFile: historySessionFile,
+                                workspacePath: currentWorkspace,
+                              })
+                              setForkOpen(true)
+                            }
+                          : undefined
+                      }
+                    />
+                    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                      {showHome ? (
+                        <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
+                          <ProjectHomeView />
+                        </Suspense>
+                      ) : (
+                        <Timeline />
+                      )}
+                      <ComposerDock heroMode={showHome}>
+                        {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
+                        <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
+                        <Composer />
+                      </ComposerDock>
+                      {!showHome ? <TimelineScrubber /> : null}
+                    </div>
+                  </MainColumnWithTimelineScroll>
+                </SplitView>
+              )
             }
             right={
               <RightPanel>
@@ -611,6 +613,7 @@ export default function App() {
         <StatusBar />
       </div>
       <AppToaster />
+      <GlobalTooltipHost />
       <ExtensionUIHost />
       <AppUpdateHost />
       <CloseDecisionDialog />

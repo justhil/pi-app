@@ -3,8 +3,10 @@ import { extname } from 'path'
 import { shell } from 'electron'
 import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
 import { workspaceFsSearch } from '../../workspace-file-search'
+import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { wslPathToWindows } from '@shared/wsl-path'
+import { isSshWindowsPath } from '../../ssh/ssh-exec'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import {
   shellOpenPathSchema,
@@ -76,6 +78,13 @@ export function registerWorkspaceFsHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.fs.listDir', workspaceFsListDirSchema, async (req) => {
+    if (isSshWindowsPath(req.workspaceRoot)) {
+      return sessionPreviewProcess.remoteFs('fs.listDir', {
+        workspaceRoot: req.workspaceRoot,
+        path: req.path != null ? req.path : '.',
+        includeDotfiles: req.includeDotfiles === true,
+      })
+    }
     return workspaceFsListDir({
       workspaceRoot: req.workspaceRoot,
       path: req.path != null ? req.path : '.',
@@ -84,10 +93,24 @@ export function registerWorkspaceFsHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.fs.search', workspaceFsSearchSchema, async (req) => {
+    if (isSshWindowsPath(req.workspaceRoot)) {
+      return sessionPreviewProcess.remoteFs('fs.search', {
+        workspaceRoot: req.workspaceRoot,
+        query: req.query,
+        maxResults: req.maxResults,
+      })
+    }
     return workspaceFsSearch(req)
   })
 
   registerHandlerWithSchema('ipc:workspace.fs.readText', workspaceFsReadTextSchema, async (req) => {
+    if (isSshWindowsPath(req.workspaceRoot)) {
+      return sessionPreviewProcess.remoteFs('fs.readText', {
+        workspaceRoot: req.workspaceRoot,
+        path: req.path,
+        maxBytes: req.maxBytes,
+      })
+    }
     return workspaceFsReadText({
       workspaceRoot: req.workspaceRoot,
       path: req.path,
@@ -96,6 +119,13 @@ export function registerWorkspaceFsHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.fs.rename', workspaceFsRenameSchema, async (req) => {
+    if (isSshWindowsPath(req.workspaceRoot)) {
+      return sessionPreviewProcess.remoteFs('fs.rename', {
+        workspaceRoot: req.workspaceRoot,
+        relativePath: req.relativePath,
+        newName: req.newName,
+      })
+    }
     return workspaceFsRename({
       workspaceRoot: req.workspaceRoot,
       relativePath: req.relativePath,
@@ -104,6 +134,13 @@ export function registerWorkspaceFsHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.fs.create', workspaceFsCreateSchema, async (req) => {
+    if (isSshWindowsPath(req.workspaceRoot)) {
+      return sessionPreviewProcess.remoteFs('fs.create', {
+        workspaceRoot: req.workspaceRoot,
+        relativePath: req.relativePath,
+        isDirectory: req.isDirectory === true,
+      })
+    }
     return workspaceFsCreate({
       workspaceRoot: req.workspaceRoot,
       relativePath: req.relativePath,

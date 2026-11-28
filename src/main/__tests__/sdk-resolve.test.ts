@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   resolvePackageEntryPath: vi.fn((uncRoot: string) => `${uncRoot}\\dist\\index.js`),
 }))
 
-vi.mock('@shared/wsl-path', () => ({
+vi.mock('@shared/wsl-path', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@shared/wsl-path')>(),
   wslPathToWindows: mocks.wslPathToWindows,
 }))
 

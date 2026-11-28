@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isSshDistro,
+  isSshWindowsPath,
   isWslWindowsPath,
+  sshDistroHost,
+  toSshDistro,
   wslWindowsPathDistro,
   wslPathToWindows,
   windowsPathToWsl,
@@ -96,6 +100,31 @@ describe('wsl-path', () => {
         wslWindowsPathsEqual('\\\\wsl$\\Ubuntu\\home\\u\\proj', '\\\\wsl.localhost\\Ubuntu\\home\\u\\other'),
       ).toBe(false)
       expect(wslWindowsPathsEqual('C:\\a', 'c:\\a')).toBe(false)
+    })
+  })
+
+  describe('SSH target paths', () => {
+    it('identifies ssh@ distros and extracts host', () => {
+      expect(toSshDistro('my-vps')).toBe('ssh@my-vps')
+      expect(isSshDistro('ssh@my-vps')).toBe(true)
+      expect(isSshDistro('Ubuntu')).toBe(false)
+      expect(sshDistroHost('ssh@root@1.2.3.4')).toBe('root@1.2.3.4')
+    })
+
+    it('maps remote VPS paths without converting /mnt/<drive> to local Windows drives', () => {
+      const win = wslPathToWindows('ssh@my-vps', '/root/my-project')
+      expect(win).toBe('\\\\wsl.localhost\\ssh@my-vps\\root\\my-project')
+      expect(isSshWindowsPath(win)).toBe(true)
+      expect(windowsPathToWsl('ssh@my-vps', win)).toBe('/root/my-project')
+      expect(wslPathToWindows('ssh@my-vps', '/mnt/c/data')).toBe('\\\\wsl.localhost\\ssh@my-vps\\mnt\\c\\data')
+    })
+
+    it('rejects another SSH host or a Windows path instead of resolving it on the active host', () => {
+      const otherHost = '//WSL.LOCALHOST/ssh@other-vps/root/project'
+      expect(() => windowsPathToWsl('ssh@my-vps', otherHost)).toThrow('different SSH runtime')
+      expect(() => windowsPathToWsl('Ubuntu', otherHost)).toThrow('different SSH runtime')
+      expect(() => windowsPathToWsl('ssh@my-vps', 'C:\\project')).toThrow('unavailable on the SSH runtime')
+      expect(windowsPathToWsl('ssh@my-vps', '//wsl.localhost/ssh@my-vps')).toBe('/')
     })
   })
 })

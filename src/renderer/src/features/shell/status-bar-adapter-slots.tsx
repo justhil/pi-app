@@ -16,6 +16,7 @@ import type { StatusBarPillSnapshot } from '@shared/background-tasks'
 import { resolveAdapterText } from '@extension-compat/adapter-schema'
 import { currentAdapterCatalog } from '@renderer/lib/adapter-catalog'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import {
   selectSessionStatusPills,
   useAdapterStatusBarStore,
@@ -86,7 +87,7 @@ export function StatusBarAdapterSlots({
     }
     if (action.type === 'open-panel') {
       const panel = action.panelId || `adapter:${pill.adapterId}`
-      useUIStore.getState().setActivePanel(panel)
+      showRightPanelTab(panel)
       return
     }
     if (action.type === 'config-page') {

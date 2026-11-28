@@ -1,8 +1,35 @@
 import { open, type FileHandle } from 'node:fs/promises'
+import { windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
+import { isSshWindowsPath } from './ssh/ssh-exec'
+import { runWslDistroAsync } from './wsl/wsl-exec'
 
 export type SessionFileMeta = {
   sessionId: string
   cwd: string | null
+}
+
+const sshSessionMetaCache = new Map<string, SessionFileMeta>()
+
+function metaCacheKey(sessionFile: string): string {
+  return sessionFile.replace(/\\/g, '/').replace(/^\/+/, '//').toLowerCase()
+}
+
+export function rememberSessionMeta(sessionFile: string, meta: SessionFileMeta): void {
+  if (!sessionFile || !meta.sessionId) return
+  sshSessionMetaCache.set(metaCacheKey(sessionFile), meta)
+}
+
+function parseFirstSessionLine(raw: string): SessionFileMeta | null {
+  const firstLine = raw.split(/\r?\n/).find((line) => line.trim())?.trim() ?? ''
+  if (!firstLine) return null
+  try {
+    const header = JSON.parse(firstLine) as { type?: string; id?: unknown; cwd?: unknown }
+    if (header.type !== 'session' || !header.id) return null
+    const cwd = typeof header.cwd === 'string' && header.cwd.trim() ? header.cwd.trim() : null
+    return { sessionId: String(header.id), cwd }
+  } catch {
+    return null
+  }
 }
 
 export function sessionFilePathForFs(sessionFile: string): string {
@@ -11,6 +38,18 @@ export function sessionFilePathForFs(sessionFile: string): string {
 }
 
 export async function readSessionMetaFromFile(sessionFile: string): Promise<SessionFileMeta | null> {
+  if (isSshWindowsPath(sessionFile)) {
+    const cached = sshSessionMetaCache.get(metaCacheKey(sessionFile))
+    if (cached) return cached
+    const distro = wslWindowsPathDistro(sessionFile)
+    const remotePath = distro ? windowsPathToWsl(distro, sessionFile) : ''
+    if (!distro || !remotePath) return null
+    const res = await runWslDistroAsync(distro, ['head', '-n', '10', remotePath], { timeout: 10000 })
+    if (res.status !== 0) return null
+    const parsed = parseFirstSessionLine(res.stdout)
+    if (parsed) rememberSessionMeta(sessionFile, parsed)
+    return parsed
+  }
   const filePath = sessionFilePathForFs(sessionFile)
   if (!filePath) return null
   let handle: FileHandle | null = null

@@ -3,6 +3,7 @@ import { execFile, execFileSync } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { isWslWindowsPath } from '@shared/wsl-path'
+import { isSshWindowsPath } from './ssh/ssh-exec'
 import { mainLabel } from '@shared/main-labels'
 import { getMainUiLanguage } from '@shared/main-language'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
@@ -61,6 +62,7 @@ function isNotGitRepo(stderr: string, message: string): boolean {
 /** 工作区是否为 git 仓库（含 .git 目录或文件） */
 export function isGitRepository(cwd: string): boolean {
   if (!cwd) return false
+  if (isSshWindowsPath(cwd)) return true
   return existsSync(join(cwd, '.git'))
 }
 
@@ -186,6 +188,7 @@ export type GitWorkspaceSnapshot = {
 const UNTRACKED_DIFF_MAX_BYTES = 256 * 1024
 
 function untrackedPatch(cwd: string, relPath: string): string {
+  if (isSshWindowsPath(cwd)) return ''
   const abs = join(cwd, relPath)
   if (!existsSync(abs)) return ''
   const stat = statSync(abs)

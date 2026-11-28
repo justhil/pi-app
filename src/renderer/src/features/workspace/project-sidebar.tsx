@@ -14,7 +14,7 @@ import { cn } from '@renderer/lib/utils'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, Folder, FolderOpen, PencilLine, Plus, Search, X } from '@renderer/components/icons'
+import { ChevronRight, Folder, FolderOpen, Plug, Plus, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
@@ -37,7 +37,9 @@ import {
 } from './project-sidebar-types'
 import { matchesSessionQuery } from './project-session-tree'
 import { projectFolderOrder } from './project-folder-order'
-import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow } from './project-sidebar-rows'
+import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow, type SidebarDragProps } from './project-sidebar-rows'
+import { arrangeRecentProjects, dropEdgeAt, getSidebarDrag, moveItem, setSidebarDrag, type DropEdge } from './sidebar-manual-order'
+import { setDragLabel } from '@renderer/features/split/split-dnd'
 import { groupSidebarProjects } from './project-worktree-groups'
 import { useProjectWorktrees } from './use-project-worktrees'
 import { resolveProjectDisplayName, uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
@@ -64,9 +66,13 @@ function writeSectionOpen(open: boolean): void {
 export function ProjectSidebar({
   onOpenProject,
   openProjectLabel,
+  activeMainPage = 'chat',
+  onSelectMainPage,
 }: {
   onOpenProject: () => void
   openProjectLabel: string
+  activeMainPage?: 'chat' | 'plugins'
+  onSelectMainPage?: (page: 'chat' | 'plugins') => void
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -77,6 +83,8 @@ export function ProjectSidebar({
   const recentProjects = useUIStore((s) => s.recentProjects)
   const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const timelineEmpty = useUIStore((s) => s.timelineItems.length === 0)
+  const historyLoading = useUIStore((s) => s.historyLoading)
   const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const pinnedSessionMeta = useUIStore((s) => s.pinnedSessionMeta)
   const sessionAttention = useUIStore((s) => s.sessionAttention)
@@ -92,6 +100,7 @@ export function ProjectSidebar({
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [recentProjectsFixedOrder, setRecentProjectsFixedOrder] = useState(true)
+  const [projectDrop, setProjectDrop] = useState<{ key: string; edge: DropEdge } | null>(null)
   const fixedOrderRef = useRef(true)
   // Temporary chats start collapsed (remembered); they open by themselves when the active
   // conversation lives there (new temp chat / opened sandbox) so it is never hidden.
@@ -449,6 +458,7 @@ export function ProjectSidebar({
   }
 
   const handleNewSandboxDialog = () => {
+    onSelectMainPage?.('chat')
     enterBlankSession('ephemeral-sandbox')
     void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
   }
@@ -476,6 +486,7 @@ export function ProjectSidebar({
 
   const handleNewSessionInProject = async (workspacePath: string) => {
     if (!workspacePath || isSandboxPath(workspacePath)) return
+    onSelectMainPage?.('chat')
     try {
       if (!workspacePathsEqual(workspacePath, currentWorkspace)) {
         await activateWorkspace(workspacePath, { preferHome: true })
@@ -514,7 +525,60 @@ export function ProjectSidebar({
       && box.label.toLowerCase().includes(sessionQuery.trim().toLowerCase()))
     : sandboxes
 
-  const renderProject = (project: GitWorktree, grouped: boolean, repositoryPath?: string | null, siblingPaths?: string[]) => {
+  /** Drop a top-level project or repository group next to another and save the stored order. */
+  const reorderProjects = async (fromKey: string, targetKey: string, edge: DropEdge) => {
+    const items = projectGroups.map((group) => ({ key: group.key, paths: group.projects.map((project) => project.path) }))
+    const moved = moveItem(items, items.findIndex((item) => item.key === fromKey), items.findIndex((item) => item.key === targetKey), edge)
+    if (moved === items) return
+    const order = moved.map((item) => item.paths)
+    useUIStore.setState((state) => ({ recentProjects: arrangeRecentProjects(state.recentProjects, order) }))
+    try {
+      // Rearrange the list as the main process has it now, so a project it just added stays.
+      const res = await ipcClient.invoke('settings.get', { key: 'recentProjects' })
+      const stored = res?.settings?.recentProjects as string[] | undefined
+      if (stored) await ipcClient.invoke('settings.set', { key: 'recentProjects', value: arrangeRecentProjects(stored, order) })
+    } catch (e) {
+      console.error('[ProjectSidebar] saving project order failed:', e)
+    } finally {
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
+    }
+  }
+
+  const projectDragProps = (groupKey: string, label: string): SidebarDragProps | undefined => searchActive ? undefined : {
+    draggable: true,
+    'data-drop-edge': projectDrop?.key === groupKey ? projectDrop.edge : undefined,
+    onDragStart: (e) => {
+      e.dataTransfer.effectAllowed = 'move'
+      setDragLabel(e, label)
+      setSidebarDrag({ kind: 'project', key: groupKey })
+    },
+    onDragEnd: () => {
+      setSidebarDrag(null)
+      setProjectDrop(null)
+    },
+    onDragOver: (e) => {
+      const drag = getSidebarDrag()
+      if (drag?.kind !== 'project' || drag.key === groupKey) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const edge = dropEdgeAt(e)
+      setProjectDrop((previous) => previous?.key === groupKey && previous.edge === edge ? previous : { key: groupKey, edge })
+    },
+    onDragLeave: (e) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+      setProjectDrop((previous) => previous?.key === groupKey ? null : previous)
+    },
+    onDrop: (e) => {
+      const drag = getSidebarDrag()
+      if (drag?.kind !== 'project' || drag.key === groupKey) return
+      e.preventDefault()
+      setProjectDrop(null)
+      setSidebarDrag(null)
+      void reorderProjects(drag.key, groupKey, dropEdgeAt(e))
+    },
+  }
+
+  const renderProject = (project: GitWorktree, grouped: boolean, repositoryPath?: string | null, siblingPaths?: string[], headerDragProps?: SidebarDragProps) => {
     const { path } = project
     const key = workspacePathKey(path)
     const open = searchActive || expandedPaths.has(key)
@@ -552,6 +616,7 @@ export function ProjectSidebar({
         if (willExpand && !(key in mergedSessionsByWorkspace)) void loadWorkspaceSessions(path)
       }}
       onNewSession={() => void handleNewSessionInProject(path)}
+      headerDragProps={headerDragProps}
       onProjectContextMenu={(event) =>
         projectMenu.open(event, path, displayName, {
           repositoryPath: repositoryPath || path,
@@ -671,16 +736,35 @@ export function ProjectSidebar({
     return out
   }, [pinnedSessions, pinnedSessionMeta, sandboxes, diskPaths, currentWorkspace, sessions, sessionsByWorkspace, projectDisplayNames, t])
 
+  const isPluginsActive = activeMainPage === 'plugins'
+  const isNewChatActive = !isPluginsActive && !historySessionFile && timelineEmpty && !historyLoading
+
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-1">
         <button
           type="button"
           onClick={() => void handleNewSandboxDialog()}
-          title={t('sidebar.tempChat')}
-          className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg"
+          title={t('common:nav.new')}
+          aria-current={isNewChatActive ? 'page' : undefined}
+          className={cn(
+            'chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg',
+            isNewChatActive && 'bg-foreground/[0.08] text-foreground',
+          )}
         >
           <Plus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectMainPage?.(isPluginsActive ? 'chat' : 'plugins')}
+          title={t('common:nav.plugins')}
+          aria-current={isPluginsActive ? 'page' : undefined}
+          className={cn(
+            'chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg',
+            isPluginsActive && 'bg-foreground/[0.08] text-foreground',
+          )}
+        >
+          <Plug className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -695,14 +779,6 @@ export function ProjectSidebar({
   }
 
   const handleQuickNewThread = () => {
-    if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      void handleNewSessionInProject(currentWorkspace)
-      return
-    }
-    if (diskPaths[0]) {
-      void handleNewSessionInProject(diskPaths[0])
-      return
-    }
     void handleNewSandboxDialog()
   }
 
@@ -740,7 +816,9 @@ export function ProjectSidebar({
           data-pi-slot="sidebar-header"
           className="flex h-12 shrink-0 items-center justify-between pl-5 pr-3 select-none"
         >
-          <span className="text-[16px] font-semibold tracking-[-0.025em] text-foreground">pi</span>
+          {/* Lowercase "pi" sits low in its line box (x-height + descender): lift it so its body
+              lines up with the rail's pi mark and the search icon on the same 48px row. */}
+          <span className="-translate-y-0.5 text-[16px] font-semibold leading-none tracking-[-0.025em] text-foreground">pi</span>
           <div className="flex items-center gap-0.5">{renderSearchTrigger()}</div>
         </div>
       ) : (
@@ -809,19 +887,43 @@ export function ProjectSidebar({
           </div>
         ) : null}
 
-        {/* Primary quiet action row matching Codex "新聊天" */}
+        {/* Primary top navigation matching Claude Code ("+ 新建" & "插件") */}
         {showNewChat ? (
-          <div className="flex items-center gap-1 px-3">
+          <div className="space-y-0.5 px-3">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                data-pi-slot="sidebar-new-chat"
+                aria-current={isNewChatActive ? 'page' : undefined}
+                onClick={handleQuickNewThread}
+                className={cn(
+                  // Same 15px icon + gap-2 as project rows, so every label starts on one column.
+                  'nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] transition-colors',
+                  isNewChatActive
+                    ? 'nav-row-active font-medium text-foreground'
+                    : 'text-foreground/90 hover:text-foreground',
+                )}
+              >
+                <Plus className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/85" strokeWidth={1.7} />
+                <span className="truncate">{t('common:nav.new')}</span>
+              </button>
+              {!showBrand ? renderSearchTrigger() : null}
+            </div>
             <button
               type="button"
-              data-pi-slot="sidebar-new-chat"
-              onClick={handleQuickNewThread}
-              className="nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/90 transition-colors hover:text-foreground"
+              data-pi-slot="sidebar-plugins"
+              aria-current={isPluginsActive ? 'page' : undefined}
+              onClick={() => onSelectMainPage?.('plugins')}
+              className={cn(
+                'nav-row flex h-[34px] w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-[13px] transition-colors',
+                isPluginsActive
+                  ? 'nav-row-active font-medium text-foreground'
+                  : 'text-foreground/90 hover:text-foreground',
+              )}
             >
-              <PencilLine className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/80" strokeWidth={1.6} />
-              <span className="truncate">{t('common:sidebar.newChat')}</span>
+              <Plug className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/85" strokeWidth={1.65} />
+              <span className="truncate">{t('common:nav.plugins')}</span>
             </button>
-            {!showBrand ? renderSearchTrigger() : null}
           </div>
         ) : null}
 
@@ -866,6 +968,7 @@ export function ProjectSidebar({
                     !ephemeralSandboxDraft &&
                     sessionFilesEqual(historySessionFile, entry.sessionFile)
                   const openPinned = async () => {
+                    onSelectMainPage?.('chat')
                     if (entry.sandboxBox) {
                       await openSandboxDialog(entry.sandboxBox)
                       return
@@ -976,7 +1079,12 @@ export function ProjectSidebar({
               {projectGroups.map((group) => {
                 const projects = group.projects.filter((project) => visiblePaths.includes(project.path))
                 if (!projects.length) return null
-                if (!group.repositoryPath) return projects.map((project) => renderProject(project, false))
+                if (!group.repositoryPath) {
+                  return projects.map((project) =>
+                    renderProject(project, false, null, undefined,
+                      projectDragProps(group.key, resolveProjectDisplayName(projectDisplayNames, project.path, diskProjectName(project.path), { grouped: false }))),
+                  )
+                }
                 const name = resolveProjectDisplayName(
                   projectDisplayNames,
                   group.repositoryPath,
@@ -993,6 +1101,7 @@ export function ProjectSidebar({
                         className="sidebar-repository-hit flex h-[34px] w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sidebar-row-hover)]"
                         aria-expanded={open}
                         title={group.repositoryPath}
+                        {...projectDragProps(group.key, name)}
                         onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}
                         onContextMenu={(event) =>
                           projectMenu.open(event, group.repositoryPath!, name, {
@@ -1082,21 +1191,16 @@ export function ProjectSidebar({
           </div>
           <SidebarAnimatedCollapse open={searchActive || sectionOpen}>
             <div className="space-y-0.5">
-              {ephemeralSandboxDraft && (
-                <div className="nav-row nav-row-active relative flex h-[34px] items-center gap-2 rounded-lg px-2">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-                    {t('sidebar.newChat')}
-                  </span>
-                </div>
-              )}
-              {sortedVisibleSandboxes.length === 0 && !ephemeralSandboxDraft ? null : (
+              {sortedVisibleSandboxes.length === 0 ? null : (
                 sortedVisibleSandboxes.map((box) => (
                   <SandboxDialogRow
                     key={box.path}
                     box={box}
-                    active={box.path === currentWorkspace && !ephemeralSandboxDraft}
-                    onOpen={() => void openSandboxDialog(box)}
+                    active={!isPluginsActive && box.path === currentWorkspace && !ephemeralSandboxDraft}
+                    onOpen={() => {
+                      onSelectMainPage?.('chat')
+                      void openSandboxDialog(box)
+                    }}
                     onContextMenu={(e) => sandboxMenu.open(e, box)}
                   />
                 ))

@@ -4,6 +4,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join, resolve } from 'path'
+import { isSshWindowsPath } from '../main/ssh/ssh-exec'
 import { adapterIdentity, parseAdapterDeclaration } from './adapter-validation'
 import { getActiveDesktopDir } from './active-dirs'
 import { BUILTIN_ADAPTERS } from './builtin-adapters'
@@ -112,7 +113,8 @@ export function prepareAdapterCatalog(projectDir?: string, options?: { refresh?:
   const desktopDir = getActiveDesktopDir()
   const entry: Cached = previous ?? { catalog: builtinCatalog, checkedAt: 0 }
   const job = (async () => {
-    const dirs = [join(desktopDir, 'adapters'), ...(projectDir ? [join(projectDir, '.pi', 'desktop', 'adapters')] : [])]
+    const includeProject = projectDir && !isSshWindowsPath(projectDir)
+    const dirs = [join(desktopDir, 'adapters'), ...(includeProject ? [join(projectDir, '.pi', 'desktop', 'adapters')] : [])]
     const fingerprints = await Promise.all(dirs.map(async (dir) => {
       const names = (await readdir(dir).catch((error: NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') return []

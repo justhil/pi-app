@@ -120,7 +120,8 @@ export function LeftActivityRail({
               title={t('common:app.name')}
               aria-label={t('common:app.name')}
               className={cn(
-                'flex items-center justify-center rounded-lg bg-foreground/[0.06] text-foreground transition-colors hover:bg-foreground/[0.1]',
+                // No resting plate behind the mark; hover matches the other rail buttons.
+                'flex items-center justify-center rounded-lg text-foreground transition-colors hover:bg-foreground/[0.06]',
                 compact ? 'h-7 w-7' : 'h-8 w-8',
               )}
             >

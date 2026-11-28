@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Plus, RefreshCw, Sparkles } from '@renderer/components/icons'
@@ -81,6 +81,34 @@ export function ModelsSettingsPanel() {
     })
   }, [])
 
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const baselineRef = useRef(baseline)
+  baselineRef.current = baseline
+
+  /** Reload from disk; with unsaved edits, ask first instead of silently dropping them. */
+  const reloadFromDisk = useCallback(() => {
+    const reload = () =>
+      void load().catch((e: unknown) => {
+        toast.error((e instanceof Error ? e.message : String(e)) || t('models.loadFailedToast'))
+      })
+    if (configEqual(draftRef.current, baselineRef.current)) {
+      reload()
+      return
+    }
+    setConfirmState({
+      title: t('models.reloadDiscardTitle'),
+      message: t('models.reloadDiscardConfirm'),
+      destructive: true,
+      onConfirm: () => {
+        setConfirmState(null)
+        reload()
+      },
+    })
+  }, [load, t])
+  const reloadFromDiskRef = useRef(reloadFromDisk)
+  reloadFromDiskRef.current = reloadFromDisk
+
   useEffect(() => {
     setLoading(true)
     void load()
@@ -89,7 +117,7 @@ export function ModelsSettingsPanel() {
       })
       .finally(() => setLoading(false))
     return onAppEvent((event) => {
-      if (event.type === 'sdk-runtime-changed') void load()
+      if (event.type === 'sdk-runtime-changed') reloadFromDiskRef.current()
     })
   }, [load, t])
 
@@ -421,7 +449,7 @@ export function ModelsSettingsPanel() {
             <button
               type="button"
               className={btnOutline}
-              onClick={() => void load().catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))}
+              onClick={reloadFromDisk}
             >
               <RefreshCw className="mr-1 inline h-3 w-3" strokeWidth={2} />
               {t('models.reload')}
@@ -432,7 +460,7 @@ export function ModelsSettingsPanel() {
 
       <ModelDefaultsSection />
 
-      <GoogleAiPlanSection onChanged={load} />
+      <GoogleAiPlanSection onChanged={reloadFromDisk} />
 
       {(parseError || schemaError || saveError) && (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 whitespace-pre-wrap px-3 py-2 text-sm text-amber-900 dark:text-amber-200">

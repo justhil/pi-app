@@ -19,6 +19,11 @@ vi.mock('../agent-dir', () => ({
   resolveActiveAgentSettingsFile: () => join(activeAgentDir, 'settings.json'),
 }))
 
+vi.mock('../../extension-compat/active-dirs', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../extension-compat/active-dirs')>(),
+  getActiveAgentDir: () => activeAgentDir,
+}))
+
 import { getModelsJsonPath } from '../pi-models-json'
 import { readPiInfo } from '../pi-info'
 import { listRevisions, pushRevision } from '../resource-revisions'

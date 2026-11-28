@@ -143,6 +143,11 @@ export class SessionPreviewProcess {
       | 'warm'
       | 'system.prompt'
       | 'usage.summary'
+      | 'fs.listDir'
+      | 'fs.readText'
+      | 'fs.create'
+      | 'fs.rename'
+      | 'fs.search'
       | 'usage.logs'
       | 'usage.requestDetail',
     payload: Record<string, unknown>,
@@ -293,6 +298,13 @@ export class SessionPreviewProcess {
 
   getPiSettings(cwd: string): Promise<Record<string, unknown>> {
     return this.request('pi.settings.get', { cwd })
+  }
+
+  remoteFs<T>(
+    type: 'fs.listDir' | 'fs.readText' | 'fs.create' | 'fs.rename' | 'fs.search',
+    payload: Record<string, unknown>,
+  ): Promise<T> {
+    return this.request<T>(type, payload)
   }
 
   setPiSettings(patch: Record<string, unknown>, cwd: string): Promise<void> {

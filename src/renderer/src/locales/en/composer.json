@@ -398,5 +398,12 @@
     "fromOriginLabel": "Fetch and start from latest origin commit",
     "existingHeading": "Or reuse an existing Worktree",
     "createFailed": "Failed to create worktree"
+  },
+  "projectPicker": {
+    "ariaLabel": "Select project for chat",
+    "noProject": "No project",
+    "noProjectDesc": "Save directly under Conversations",
+    "projectsHeading": "Projects",
+    "openFolder": "Open folder…"
   }
 }

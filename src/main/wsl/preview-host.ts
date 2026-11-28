@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'child_process'
 import { spawn } from 'child_process'
 import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
+import { isSshDistro, spawnSshTarget } from '../ssh/ssh-exec'
 import { wslCdFlagSupported } from './worker-host'
 import { syncWslBundle } from './bundle-sync'
 import { wslNodeCommand } from './wsl-env'
@@ -14,6 +15,17 @@ export function spawnPreviewInWsl(opts: {
   wslCwd: string
   previewWslPath: string
 }): ChildProcess {
+  if (isSshDistro(opts.distro)) {
+    return spawnSshTarget({
+      distro: opts.distro,
+      cwd: opts.wslCwd,
+      commandArgs: wslNodeCommand(opts.distro, opts.previewWslPath),
+      envVars: {
+        [WORKER_STDIO_ENV]: '1',
+        [WORKER_WSL_DISTRO_ENV]: opts.distro,
+      },
+    })
+  }
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
     args.push('--cd', opts.wslCwd, '--', ...wslNodeCommand(opts.distro, opts.previewWslPath))

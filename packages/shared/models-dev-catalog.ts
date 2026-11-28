@@ -482,8 +482,12 @@ export function computeSpecFillPatch<
   if (spec.maxTokens !== undefined && (overwrite || existing.maxTokens == null)) {
     patch.maxTokens = spec.maxTokens
   }
-  if (overwrite || existing.reasoning === undefined) {
+  // Only fill reasoning when the spec turns it on: an empty `reasoning: undefined` key would keep
+  // the model listed as "missing specs" forever (the patch is never empty, yet changes nothing).
+  if (overwrite) {
     patch.reasoning = spec.reasoning || undefined
+  } else if (existing.reasoning === undefined && spec.reasoning) {
+    patch.reasoning = true
   }
   const hasImageNow = Array.isArray(existing.input) && existing.input.includes('image')
   if (overwrite || (!hasImageNow && spec.input.includes('image')) || !Array.isArray(existing.input)) {

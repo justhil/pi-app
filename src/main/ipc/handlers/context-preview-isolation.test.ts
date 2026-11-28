@@ -87,6 +87,10 @@ vi.mock('../../wsl/runtime-config', () => ({
   getAgentRuntimeConfig: () => (mocks.isWslRuntimeActive() ? { mode: 'wsl', distro: 'Ubuntu' } : { mode: 'host', distro: null }),
 }))
 
+// model.list projects the Google AI plan from the real agent dir; keep the test independent of this machine.
+vi.mock('../../google-ai-plan/service', () => ({
+  augmentModelsWithGoogleAiPlan: <T,>(models: readonly T[]) => [...models],
+}))
 vi.mock('../../trusted-workspace', () => ({
   authorizeTrustedSessionFile: mocks.authorizeTrustedSessionFile,
 }))

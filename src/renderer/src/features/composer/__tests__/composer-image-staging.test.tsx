@@ -138,6 +138,21 @@ describe('ImageLightbox', () => {
     expect(close.className).not.toContain('text-white')
     expect(close.className).not.toContain('bg-black')
   })
+
+  it('zooms in and out with Ctrl + wheel and resets on double click', () => {
+    render(<ImageLightbox src={DATA_URL} alt="shot.png" onClose={vi.fn()} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'shot.png' })
+    const img = dialog.querySelector('img')!
+    expect(img.style.transform).toContain('scale(1)')
+
+    fireEvent.wheel(dialog, { ctrlKey: true, deltaY: -100 })
+    expect(img.style.transform).toContain('scale(1.15)')
+    expect(screen.getByRole('button', { name: '115%' })).toBeInTheDocument()
+
+    fireEvent.doubleClick(img)
+    expect(img.style.transform).toContain('scale(1)')
+  })
 })
 
 describe('transient composer images', () => {

@@ -1,7 +1,7 @@
 export { APP_ICON_NAMES, LEGACY_ICON_ALIASES, normalizeLegacyIconName } from './icon-names'
 export type { AppIconName } from './icon-names'
 export type { AppIconComponent, AppIconProps } from './types'
-export { applyIconTheme, createAppIcon, hydrateIconThemeFromSettings, resolveAppIcon, ThemedIcon, useIconThemeStore } from './icon-runtime'
+export { applyIconTheme, createAppIcon, hydrateIconThemeFromSettings, loadIconTheme, resolveAppIcon, ThemedIcon, useIconThemeStore } from './icon-runtime'
 import { createAppIcon } from './icon-runtime'
 
 export const Activity = createAppIcon('activity', 'Activity')

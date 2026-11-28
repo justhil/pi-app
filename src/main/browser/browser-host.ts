@@ -59,6 +59,8 @@ const MAX_CLOSED_HISTORY = 20
 /** Auto-sleep background tabs idle for 15 minutes to save Chromium memory/CPU. */
 const AUTO_SLEEP_IDLE_MS = 15 * 60 * 1000
 const SLEEP_SWEEP_INTERVAL_MS = 2 * 60 * 1000
+/** How long reading a woken tab waits for its page to load before reading what is there. */
+const WAKE_LOAD_TIMEOUT_MS = 10_000
 
 export class BrowserDialogPendingError extends Error {
   constructor() {
@@ -224,7 +226,8 @@ export class BrowserHost implements AgentBrowserHost {
 
     const ownerKey = openedBy !== 'user' ? openedBy.sessionKey : this.activeSessionKey
     if (ownerKey) this.activeTabBySession.set(ownerKey, info.tabId)
-    const shouldFocus = opts.focus !== undefined ? opts.focus : true
+    const shouldFocus =
+      opts.focus !== undefined ? opts.focus : !this.isBackgroundSession(openedBy !== 'user' ? openedBy.sessionKey : null)
     if (shouldFocus) this.focusTab(info.tabId)
 
     const url = opts.url && isAllowedBrowserUrl(opts.url) ? opts.url : 'about:blank'
@@ -358,6 +361,12 @@ export class BrowserHost implements AgentBrowserHost {
     }
   }
 
+  /** True when `sessionKey` names a conversation other than the one the user is viewing. */
+  private isBackgroundSession(sessionKey: string | null | undefined): boolean {
+    if (!sessionKey || !this.activeSessionKey) return false
+    return normalizeBrowserSessionKey(sessionKey) !== this.activeSessionKey
+  }
+
   focusTab(tabId: string | null, opts?: { window?: boolean; sessionKey?: string }): void {
     if (tabId === null) {
       if (this.activeTabId) this.tabs.get(this.activeTabId)?.view?.setVisible(false)
@@ -372,6 +381,9 @@ export class BrowserHost implements AgentBrowserHost {
       ? normalizeBrowserSessionKey(opts.sessionKey)
       : this.activeSessionKey
     if (targetSession) this.activeTabBySession.set(targetSession, tabId)
+    // An agent working in a conversation the user is not looking at keeps its tab in the
+    // background: remember it for that conversation, but leave the visible tab alone.
+    if (opts?.sessionKey && !opts.window && this.isBackgroundSession(targetSession)) return
     if (this.activeTabId && this.activeTabId !== tabId) {
       const prev = this.tabs.get(this.activeTabId)
       if (prev) {
@@ -534,7 +546,10 @@ export class BrowserHost implements AgentBrowserHost {
 
   async pageContext(tabId: string, maxChars = 60_000): Promise<PageContextResult> {
     const tab = this.requireTab(tabId)
+    const wasAsleep = !tab.view || tab.view.webContents.isDestroyed()
     this.ensureAwake(tab)
+    // A tab woken just now is still loading its URL; reading at once would return the blank page.
+    if (wasAsleep) await waitWhileLoading(tab.engine!, WAKE_LOAD_TIMEOUT_MS)
     return tab.engine!.run<PageContextResult>(`__piBrowser.pageContext(${num(maxChars)})`)
   }
 
@@ -766,6 +781,13 @@ export class BrowserHost implements AgentBrowserHost {
   private emit(event: BrowserEvent): void {
     const win = this.getWindow()
     if (win && !win.isDestroyed()) win.webContents.send(BROWSER_EVENT_CHANNEL, event)
+  }
+}
+
+async function waitWhileLoading(engine: PageEngine, maxMs: number): Promise<void> {
+  const started = Date.now()
+  while (engine.isLoading() && Date.now() - started < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
 }
 

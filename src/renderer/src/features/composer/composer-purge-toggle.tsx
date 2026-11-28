@@ -139,15 +139,6 @@ export function ComposerPurgeToggle({
   const currentCopy = personaCopy(uiState.persona, lang)
   const displayName = currentCopy.name || uiState.personaName
 
-  const toggleTitle = active
-    ? t(midSession ? 'composer:purge.activeMidHint' : 'composer:purge.activeDraftHint', {
-        name: displayName,
-        mode: currentModeLabel,
-      })
-    : t(midSession ? 'composer:purge.inactiveMidHint' : 'composer:purge.inactiveDraftHint', {
-        name: displayName,
-      })
-
   const commitPurgeChange = (next: {
     enabled: boolean
     personaId: string
@@ -293,7 +284,6 @@ export function ComposerPurgeToggle({
         data-purge-state={
           active ? (midSession ? 'active-mid' : 'draft-on') : midSession ? 'off-mid' : 'draft-off'
         }
-        title={toggleTitle}
         aria-label={t('composer:purge.choosePersona')}
         onClick={handleTriggerClick}
         className={cn(

@@ -397,5 +397,12 @@
     "fromOriginLabel": "先从 origin 拉取最新提交作为起点",
     "existingHeading": "或复用已有 Worktree",
     "createFailed": "创建 Worktree 失败"
+  },
+  "projectPicker": {
+    "ariaLabel": "选择对话归属项目",
+    "noProject": "无项目",
+    "noProjectDesc": "直接归入侧边栏「对话」",
+    "projectsHeading": "项目目录",
+    "openFolder": "打开其他文件夹…"
   }
 }

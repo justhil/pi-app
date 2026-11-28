@@ -300,7 +300,7 @@ function buildReactMountBootstrap(compiled: CompiledPrototypeState): string {
   var bundle = ${payloadJson};
 
   function makeLucideIcon(name, nodes) {
-    return React.forwardRef(function LucideIcon(props, ref) {
+    return React.forwardRef(function SandboxIcon(props, ref) {
       var size = props.size != null ? props.size : 20;
       var color = props.color != null ? props.color : 'currentColor';
       var strokeWidth = props.strokeWidth != null ? props.strokeWidth : 2;

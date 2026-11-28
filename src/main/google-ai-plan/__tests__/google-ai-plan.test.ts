@@ -12,7 +12,7 @@ import {
   transformGoogleInteractionsSource,
   transformGoogleOAuthSource,
 } from '../sync-upstream-pr'
-import { GoogleAiPlanOAuthSession } from '../oauth-flow'
+import { GoogleAiPlanOAuthSession, type GoogleAiPlanOAuthCredential } from '../oauth-flow'
 import type { ModelEntry } from '../../active-sdk-models-core'
 
 vi.mock('electron', () => ({
@@ -195,15 +195,13 @@ describe('sync-upstream-pr', () => {
     expect(transformedOAuth).toContain('from "./oauth-helpers.ts"')
   })
 
-  it('fetches PR files over HTTPS (with branch fallback on API error), installs atomically, and reads status', async () => {
-    const agentDir = makeTempDir()
-    const fetchedUrls: string[] = []
-    const mockFetch: typeof fetch = async (input) => {
+  const HEAD_SHA = 'a'.repeat(40)
+
+  function prFilesFetch(api: Response | (() => Response), fetchedUrls: string[]): typeof fetch {
+    return async (input) => {
       const url = String(input)
       fetchedUrls.push(url)
-      if (url.includes('api.github.com')) {
-        return new Response('rate limit', { status: 403 })
-      }
+      if (url.includes('api.github.com')) return typeof api === 'function' ? api() : api.clone()
       if (url.endsWith('google-interactions-errors.ts')) return new Response(SAMPLE_INTERACTIONS_ERRORS, { status: 200 })
       if (url.endsWith('google-interactions.ts')) return new Response(SAMPLE_INTERACTIONS, { status: 200 })
       if (url.endsWith('oauth/google-ai-plan.ts')) return new Response(SAMPLE_OAUTH, { status: 200 })
@@ -211,11 +209,27 @@ describe('sync-upstream-pr', () => {
       if (url.endsWith('client-identity.ts')) return new Response(SAMPLE_CLIENT_IDENTITY, { status: 200 })
       return new Response('not found', { status: 404 })
     }
+  }
 
-    const res = await fetchAndInstallGoogleAiPlanExtension(agentDir, { fetchImpl: mockFetch })
-    expect(res.meta.ref).toBe('google-ai-plan')
+  const prHead = (sha: string) =>
+    new Response(
+      JSON.stringify({ state: 'open', merged: false, head: { sha, ref: 'google-ai-plan', repo: { full_name: 'someone/pi' } } }),
+      { status: 200 },
+    )
+
+  it('installs only the confirmed PR head commit, from the head repository, atomically', async () => {
+    const agentDir = makeTempDir()
+    const fetchedUrls: string[] = []
+
+    const res = await fetchAndInstallGoogleAiPlanExtension(agentDir, {
+      expectedSha: HEAD_SHA,
+      fetchImpl: prFilesFetch(prHead(HEAD_SHA), fetchedUrls),
+    })
+    expect(res.meta.sha).toBe(HEAD_SHA)
     expect(res.meta.models).toHaveLength(4)
-    expect(fetchedUrls.some((u) => u.includes('raw.githubusercontent.com/earendil-works/pi/google-ai-plan/'))).toBe(true)
+    const fileUrls = fetchedUrls.filter((u) => u.includes('raw.githubusercontent.com'))
+    expect(fileUrls).toHaveLength(5)
+    expect(fileUrls.every((u) => u.startsWith(`https://raw.githubusercontent.com/someone/pi/${HEAD_SHA}/`))).toBe(true)
 
     const installed = readInstalledGoogleAiPlanExtension(agentDir)
     expect(installed.installed).toBe(true)
@@ -224,6 +238,34 @@ describe('sync-upstream-pr', () => {
     expect(installed.models).toHaveLength(4)
 
     expect(removeGoogleAiPlanExtensionDir(agentDir)).toBe(true)
+    expect(readInstalledGoogleAiPlanExtension(agentDir).installed).toBe(false)
+  })
+
+  it('refuses to install when the PR head moved past the confirmed commit', async () => {
+    const agentDir = makeTempDir()
+    const fetchedUrls: string[] = []
+
+    await expect(
+      fetchAndInstallGoogleAiPlanExtension(agentDir, {
+        expectedSha: HEAD_SHA,
+        fetchImpl: prFilesFetch(prHead('b'.repeat(40)), fetchedUrls),
+      }),
+    ).rejects.toThrow('UPSTREAM_CHANGED')
+    expect(fetchedUrls.some((u) => u.includes('raw.githubusercontent.com'))).toBe(false)
+    expect(readInstalledGoogleAiPlanExtension(agentDir).installed).toBe(false)
+  })
+
+  it('refuses the unpinned branch fallback when the GitHub API cannot name a commit', async () => {
+    const agentDir = makeTempDir()
+    const fetchedUrls: string[] = []
+
+    await expect(
+      fetchAndInstallGoogleAiPlanExtension(agentDir, {
+        expectedSha: HEAD_SHA,
+        fetchImpl: prFilesFetch(() => new Response('rate limit', { status: 403 }), fetchedUrls),
+      }),
+    ).rejects.toThrow('UPSTREAM_SHA_UNAVAILABLE')
+    expect(fetchedUrls.some((u) => u.includes('raw.githubusercontent.com'))).toBe(false)
     expect(readInstalledGoogleAiPlanExtension(agentDir).installed).toBe(false)
   })
 
@@ -279,7 +321,8 @@ describe('GoogleAiPlanOAuthSession', () => {
       clientId: 'client-id-123',
       clientSecret: 'client-secret-456',
     }
-    let receivedCred: any = null
+    // `as` keeps TS from narrowing this to `null`: it is assigned inside a callback.
+    let receivedCred = null as GoogleAiPlanOAuthCredential | null
     const dpopHeaders: string[] = []
     let tokenCalls = 0
     let nonceFromAuth = ''
@@ -333,11 +376,11 @@ describe('GoogleAiPlanOAuthSession', () => {
 
     expect(tokenCalls).toBe(2)
     expect(receivedCred).not.toBeNull()
-    expect(receivedCred.type).toBe('oauth')
-    expect(receivedCred.access).toBe('access-abc')
-    expect(receivedCred.refresh).toBe('refresh-xyz')
-    expect(receivedCred.dpopNonce).toBe('server-nonce-2')
-    expect(receivedCred.dpopKey.d).toBeTruthy()
+    expect(receivedCred?.type).toBe('oauth')
+    expect(receivedCred?.access).toBe('access-abc')
+    expect(receivedCred?.refresh).toBe('refresh-xyz')
+    expect(receivedCred?.dpopNonce).toBe('server-nonce-2')
+    expect(receivedCred?.dpopKey.d).toBeTruthy()
 
     // Ensure DPoP header contains ONLY public JWK fields (no private `d`)
     const dpopHeader = JSON.parse(Buffer.from(dpopHeaders[1].split('.')[0], 'base64url').toString('utf8'))

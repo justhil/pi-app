@@ -12,6 +12,7 @@ import zhExtension from '../locales/zh/extension.json'
 import zhFiles from '../locales/zh/files.json'
 import zhUpdate from '../locales/zh/update.json'
 import zhBrowser from '../locales/zh/browser.json'
+import zhSsh from '../locales/zh/ssh.json'
 import enCommon from '../locales/en/common.json'
 import enTimeline from '../locales/en/timeline.json'
 import enReview from '../locales/en/review.json'
@@ -24,6 +25,7 @@ import enExtension from '../locales/en/extension.json'
 import enFiles from '../locales/en/files.json'
 import enUpdate from '../locales/en/update.json'
 import enBrowser from '../locales/en/browser.json'
+import enSsh from '../locales/en/ssh.json'
 import ruCommon from '../locales/ru/common.json'
 import ruTimeline from '../locales/ru/timeline.json'
 import ruReview from '../locales/ru/review.json'
@@ -36,6 +38,7 @@ import ruExtension from '../locales/ru/extension.json'
 import ruFiles from '../locales/ru/files.json'
 import ruUpdate from '../locales/ru/update.json'
 import ruBrowser from '../locales/ru/browser.json'
+import ruSsh from '../locales/ru/ssh.json'
 import { ipcClient } from './ipc-client'
 
 export type AppLanguage = 'zh' | 'en' | 'ru'
@@ -76,6 +79,7 @@ const i18nInitialization = i18n.use(initReactI18next).init({
       files: zhFiles,
       update: zhUpdate,
       browser: zhBrowser,
+      ssh: zhSsh,
     },
     en: {
       common: enCommon,
@@ -90,6 +94,7 @@ const i18nInitialization = i18n.use(initReactI18next).init({
       files: enFiles,
       update: enUpdate,
       browser: enBrowser,
+      ssh: enSsh,
     },
     ru: {
       common: ruCommon,
@@ -104,6 +109,7 @@ const i18nInitialization = i18n.use(initReactI18next).init({
       files: ruFiles,
       update: ruUpdate,
       browser: ruBrowser,
+      ssh: ruSsh,
     },
   },
   lng: detectInitialLanguage(),

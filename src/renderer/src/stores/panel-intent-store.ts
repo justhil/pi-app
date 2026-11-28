@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useUIStore } from './ui-store'
 import { isPanelVisibleInRightDock, useRightDockStore } from './right-dock-store'
+import { currentWindowWidth, isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 
 interface PanelIntentState {
   focusedPrNumber: number | null
@@ -40,3 +41,14 @@ export const usePanelIntentStore = create<PanelIntentState>((set) => ({
   },
   consumeFocusedPr: () => set({ focusedPrNumber: null }),
 }))
+
+/** Ctrl/Cmd+Shift+B, whether pressed in the app or inside a browser page: show or hide the Browser tab. */
+export function toggleBrowserPanelFromShortcut(): void {
+  const ui = useUIStore.getState()
+  const hidden = isRightPanelHidden({
+    collapsed: ui.rightPanelCollapsed,
+    expandedOnNarrow: ui.rightPanelExpandedOnNarrow,
+    windowWidth: currentWindowWidth(),
+  })
+  usePanelIntentStore.getState().toggleRightPanelTab('browser', !hidden)
+}

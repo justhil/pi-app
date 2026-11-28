@@ -23,7 +23,12 @@ vi.mock('../../session-bind-state', () => ({
   ensureWorkerSessionBound: vi.fn(),
 }))
 vi.mock('../../clipboard-temp-images', () => ({
+  readRemoteAttachment: vi.fn(),
   writeClipboardTempImage: vi.fn(),
+}))
+// prompt.ts checks the browser panel before a prompt; neither module loads outside Electron.
+vi.mock('../../browser/browser-host', () => ({
+  peekBrowserHost: () => null,
 }))
 vi.mock('../../config-store', () => ({ configStore: { get: vi.fn(), set: vi.fn() } }))
 

@@ -1,16 +1,20 @@
 import { stat } from 'fs/promises'
 import type { GitWorktree, GitWorktreeList } from '@shared/git-worktree'
 import { isWslWindowsPath, wslPathToWindows } from '@shared/wsl-path'
+import { isSshWindowsPath } from './ssh/ssh-exec'
 import { runGitReadOnly } from './git-workspace'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 
 export async function listGitWorktrees(cwd: string): Promise<GitWorktreeList> {
-  try {
-    if (!(await stat(cwd)).isDirectory()) return { ok: true, repositoryPath: null, trees: [], missing: true }
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, repositoryPath: null, trees: [], missing: true }
-    throw error
+  const isSsh = isSshWindowsPath(cwd)
+  if (!isSsh) {
+    try {
+      if (!(await stat(cwd)).isDirectory()) return { ok: true, repositoryPath: null, trees: [], missing: true }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: true, repositoryPath: null, trees: [], missing: true }
+      throw error
+    }
   }
   const result = await runGitReadOnly(cwd, ['worktree', 'list', '--porcelain', '-z'], { timeout: 4000 })
   if (!result.ok) {
@@ -29,12 +33,14 @@ export async function listGitWorktrees(cwd: string): Promise<GitWorktreeList> {
     const rawPath = fields.find((field) => field.startsWith('worktree '))?.slice(9)
     if (!rawPath || fields.includes('bare') || fields.some((field) => field === 'prunable' || field.startsWith('prunable '))) continue
     const path = toHost(rawPath)
-    try {
-      if (!(await stat(path)).isDirectory()) continue
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code === 'ENOENT' || code === 'ENOTDIR') continue
-      throw error
+    if (!isSsh) {
+      try {
+        if (!(await stat(path)).isDirectory()) continue
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ENOTDIR') continue
+        throw error
+      }
     }
     trees.push({
       path,

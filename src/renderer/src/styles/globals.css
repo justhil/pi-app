@@ -729,13 +729,11 @@
   .sidebar-session-row {
     cursor: pointer;
   }
+  /* Section headers are labels, not rows: hover brightens the title and chevron instead of painting
+     a fill that starts flush at the text and stops short of the row edges below it. */
   .sidebar-section-hit {
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
-  }
-  .sidebar-section-hit:hover {
-    background-color: var(--bg-hover);
   }
   /* Electron frameless: drag title region */
   .electron-drag {
@@ -1305,17 +1303,18 @@
     position: fixed;
     z-index: 9999;
     max-width: min(380px, 70vw);
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border-base);
-    background: var(--bg-base);
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 11px;
+    padding: 6px 11px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border-base) 80%, transparent);
+    background: color-mix(in srgb, var(--popover) 95%, transparent);
+    backdrop-filter: blur(12px);
+    color: var(--popover-foreground);
+    font-size: 12px;
+    font-weight: 500;
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-all;
-    box-shadow: 0 4px 16px color-mix(in srgb, var(--aou-10) 12%, transparent);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.28);
     pointer-events: none;
     opacity: 0;
     transform: translateY(4px);
@@ -1663,9 +1662,11 @@
   }
   .dark .row-hover:hover,
   .dark .sidebar-project-hit:hover,
-  .dark .sidebar-section-hit:hover,
   .dark .chrome-icon-btn:hover {
     background-color: var(--bg-hover);
+  }
+  .dark .nav-row .sidebar-project-hit:hover {
+    background-color: transparent;
   }
   .dark .rich-attachment-chip {
     background: var(--bg-2);
@@ -2548,9 +2549,9 @@
 
 /* ── Project Home: hero → dock 过渡动画 ── */
 
-/* Composer hero 居中位置：上移到主列中心偏上（按主列高度，底部终端打开时不再顶到标题上） */
+/* Composer hero 居中位置：给上方 Token 活动概览留出舒适空间 */
 .composer-dock-hero {
-  transform: translateY(calc(var(--main-col-h, 100vh) * -0.5 + 50% - 2rem));
+  transform: translateY(calc(var(--main-col-h, 100vh) * -0.28 + 50%));
 }
 
 /* hero 态输入框更宽、更柔和 */
@@ -2751,6 +2752,10 @@
 }
 .workbench-icon { width: 32px; }
 /* Sidebar section headers (对话 / 项目) and their single action share one look and one column. */
+/* Sidebar drag-to-reorder: a line where the dragged row will land. */
+.sidebar-scroll-host [data-drop-edge='before'] { box-shadow: inset 0 2px 0 0 hsl(var(--ring)); }
+.sidebar-scroll-host [data-drop-edge='after'] { box-shadow: inset 0 -2px 0 0 hsl(var(--ring)); }
+
 .sidebar-section-head {
   display: flex;
   min-height: 22px;
@@ -2763,6 +2768,16 @@
   font-weight: 400;
   letter-spacing: 0;
   color: hsl(var(--foreground) / 0.45);
+  transition: color 120ms ease;
+}
+/* Unlayered like the title color above, so hover wins over it and over the chevron's utility color. */
+.sidebar-section-hit:hover .sidebar-section-title,
+.sidebar-section-hit:hover .chevron-expand {
+  color: hsl(var(--foreground) / 0.8);
+}
+.sidebar-section-hit:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 .sidebar-section-action {
   display: inline-flex;

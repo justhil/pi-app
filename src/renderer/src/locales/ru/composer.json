@@ -399,5 +399,12 @@
     "fromOriginLabel": "Сначала обновить и стартовать от origin",
     "existingHeading": "Или выбрать существующий Worktree",
     "createFailed": "Не удалось создать worktree"
+  },
+  "projectPicker": {
+    "ariaLabel": "Выбор проекта для диалога",
+    "noProject": "Без проекта",
+    "noProjectDesc": "Сохранить сразу в раздел «Диалоги»",
+    "projectsHeading": "Проекты",
+    "openFolder": "Открыть папку…"
   }
 }

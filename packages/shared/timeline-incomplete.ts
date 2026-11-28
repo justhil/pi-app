@@ -22,20 +22,6 @@ function assistantHasBody(row: IncompleteTimelineRow): boolean {
   return !!(String(row.text || '').trim() || String(row.thinkingText || '').trim())
 }
 
-function isTerminalStopReason(stopReason: string | undefined): boolean {
-  const reason = String(stopReason || '').toLowerCase()
-  // pi uses various terminal reasons; treat common "done" values as complete
-  return (
-    reason === 'end' ||
-    reason === 'stop' ||
-    reason === 'length' ||
-    reason === 'tooluse' ||
-    reason === 'tool_use' ||
-    reason === 'tool-calls' ||
-    reason === 'toolcalls'
-  )
-}
-
 function isErrorStopReason(stopReason: string | undefined): boolean {
   const reason = String(stopReason || '').toLowerCase()
   return reason === 'aborted' || reason === 'interrupted' || reason === 'error'
@@ -107,13 +93,8 @@ export function markTrailingIncompleteAssistants<T extends IncompleteTimelineRow
   }
   if (lastAssistantIndex < 0) return working
 
-  const leafAssistant = working[lastAssistantIndex]
-  if (assistantHasBody(leafAssistant)) {
-    if (leafAssistant.incomplete || isErrorStopReason(leafAssistant.stopReason)) {
-      return working
-    }
-    return working
-  }
+  // A leaf with a body is shown as it is (partial replies keep their own flags).
+  if (assistantHasBody(working[lastAssistantIndex])) return working
 
   // Empty assistant with tools still following → not a true interrupted leaf
   if (isToolBridgeEmptyAssistant(working, lastAssistantIndex)) {
@@ -121,8 +102,6 @@ export function markTrailingIncompleteAssistants<T extends IncompleteTimelineRow
   }
 
   // Empty leaf assistant → mark incomplete (crash / force-quit / abort before tokens)
-  void isTerminalStopReason(leafAssistant.stopReason)
-
   const next = working.slice() as T[]
   for (let index = lastAssistantIndex; index >= 0; index--) {
     const row = next[index]

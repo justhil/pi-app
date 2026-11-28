@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import type { GoogleAiPlanStatus } from '@shared/ipc-contract'
@@ -53,8 +53,8 @@ afterEach(() => {
 })
 
 describe('GoogleAiPlanSection', () => {
-  it('renders preview state and triggers autoSync OAuth login on click', async () => {
-    const initial = makeStatus()
+  it('renders preview state and starts OAuth login on click when the extension is installed', async () => {
+    const initial = makeStatus({ installed: true, managedByApp: true, installedSha: '628d2ccabbb9' })
     const awaiting = makeStatus({
       installed: true,
       managedByApp: true,
@@ -81,7 +81,7 @@ describe('GoogleAiPlanSection', () => {
     fireEvent.click(loginBtn)
 
     await waitFor(() => {
-      expect(ipcClient.invoke).toHaveBeenCalledWith('googleAiPlan.loginStart', { autoSync: true })
+      expect(ipcClient.invoke).toHaveBeenCalledWith('googleAiPlan.loginStart', {})
     })
     expect(await screen.findByTestId('google-ai-plan-login-drawer')).toBeInTheDocument()
   })
@@ -181,5 +181,113 @@ describe('GoogleAiPlanSection', () => {
     expect(await screen.findByTestId('google-ai-plan-auto-removed-hint')).toBeInTheDocument()
     expect(screen.queryByTestId('google-ai-plan-sync-btn')).not.toBeInTheDocument()
     expect(screen.getByTestId('google-ai-plan-logout-btn')).toBeInTheDocument()
+  })
+})
+
+describe('GoogleAiPlanSection extension install', () => {
+  const SHA = 'c'.repeat(40)
+  const upstream = { repo: 'someone/pi', sha: SHA, prState: 'open', prMerged: false }
+
+  function dialog() {
+    return screen.findByRole('dialog')
+  }
+
+  function confirmButton(el: HTMLElement) {
+    const buttons = within(el).getAllByRole('button')
+    return buttons[buttons.length - 1]
+  }
+
+  it('shows the repository and exact commit before installing, and installs only that commit', async () => {
+    const installed = makeStatus({ installed: true, managedByApp: true, installedSha: SHA })
+    vi.mocked(ipcClient.invoke).mockImplementation(async (method) => {
+      if (method === 'googleAiPlan.status') return makeStatus()
+      if (method === 'googleAiPlan.previewSync') return { ok: true, status: makeStatus(), upstream }
+      if (method === 'googleAiPlan.syncExtension') return { ok: true, status: installed }
+      return {}
+    })
+
+    render(<GoogleAiPlanSection />)
+    fireEvent.click(await screen.findByTestId('google-ai-plan-sync-btn'))
+
+    const details = await screen.findByTestId('google-ai-plan-sync-confirm-details')
+    expect(details).toHaveTextContent('someone/pi')
+    expect(details).toHaveTextContent(SHA)
+    expect(ipcClient.invoke).not.toHaveBeenCalledWith('googleAiPlan.syncExtension', expect.anything())
+
+    fireEvent.click(confirmButton(await dialog()))
+
+    await waitFor(() => expect(ipcClient.invoke).toHaveBeenCalledWith('googleAiPlan.syncExtension', { sha: SHA }))
+  })
+
+  it('installs nothing when the confirmation is cancelled', async () => {
+    vi.mocked(ipcClient.invoke).mockImplementation(async (method) => {
+      if (method === 'googleAiPlan.status') return makeStatus()
+      if (method === 'googleAiPlan.previewSync') return { ok: true, status: makeStatus(), upstream }
+      return {}
+    })
+
+    render(<GoogleAiPlanSection />)
+    fireEvent.click(await screen.findByTestId('google-ai-plan-sync-btn'))
+    const el = await dialog()
+    fireEvent.click(within(el).getByRole('button', { name: /cancel/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(ipcClient.invoke).not.toHaveBeenCalledWith('googleAiPlan.syncExtension', expect.anything())
+  })
+
+  it('refuses to offer an install when the commit cannot be pinned', async () => {
+    vi.mocked(ipcClient.invoke).mockImplementation(async (method) => {
+      if (method === 'googleAiPlan.status') return makeStatus()
+      if (method === 'googleAiPlan.previewSync') {
+        return { ok: true, status: makeStatus(), upstream: { repo: 'earendil-works/pi', sha: null } }
+      }
+      return {}
+    })
+
+    render(<GoogleAiPlanSection />)
+    fireEvent.click(await screen.findByTestId('google-ai-plan-sync-btn'))
+
+    const err = await screen.findByTestId('google-ai-plan-error')
+    // The raw code is turned into the explanation (the key itself when this test has no locale loaded).
+    expect(err.textContent).toMatch(/googleAiPlanShaUnavailable|could not be determined/i)
+    expect(err.textContent).not.toContain('UPSTREAM_SHA_UNAVAILABLE')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(ipcClient.invoke).not.toHaveBeenCalledWith('googleAiPlan.syncExtension', expect.anything())
+  })
+
+  it('asks to install the extension first when signing in without it, then signs in', async () => {
+    const installed = makeStatus({ installed: true, managedByApp: true, installedSha: SHA })
+    const awaiting = makeStatus({
+      installed: true,
+      managedByApp: true,
+      installedSha: SHA,
+      login: { active: true, phase: 'awaiting_callback', authUrl: 'https://accounts.google.com/o/oauth2/v2/auth' },
+    })
+    let loginCalls = 0
+    vi.mocked(ipcClient.invoke).mockImplementation(async (method) => {
+      if (method === 'googleAiPlan.status') return makeStatus()
+      if (method === 'googleAiPlan.loginStart') {
+        loginCalls += 1
+        return loginCalls === 1
+          ? { ok: false, status: makeStatus(), error: 'EXTENSION_NOT_INSTALLED' }
+          : { ok: true, status: awaiting }
+      }
+      if (method === 'googleAiPlan.previewSync') return { ok: true, status: makeStatus(), upstream }
+      if (method === 'googleAiPlan.syncExtension') return { ok: true, status: installed }
+      return {}
+    })
+
+    render(<GoogleAiPlanSection />)
+    fireEvent.click(await screen.findByTestId('google-ai-plan-login-btn'))
+
+    const el = await dialog()
+    expect(within(el).getByTestId('google-ai-plan-sync-confirm-details')).toHaveTextContent(SHA)
+    expect(loginCalls).toBe(1)
+
+    fireEvent.click(confirmButton(el))
+
+    await waitFor(() => expect(ipcClient.invoke).toHaveBeenCalledWith('googleAiPlan.syncExtension', { sha: SHA }))
+    await waitFor(() => expect(loginCalls).toBe(2))
+    expect(await screen.findByTestId('google-ai-plan-login-drawer')).toBeInTheDocument()
   })
 })

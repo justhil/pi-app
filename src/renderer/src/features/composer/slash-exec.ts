@@ -8,6 +8,7 @@ import { errorMessage } from '@shared/error-message'
 import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { ensureAvailableModels } from '@renderer/lib/available-models-cache'
 import { commitSessionDisplayMeta } from '@renderer/lib/session-display-meta'
@@ -191,8 +192,8 @@ export async function executeSlashCommand(
       }
       return true
     }
-    case 'review': { setActivePanel('review'); toast.info(i18n.t('composer:toast.panelSwitched', { panel: i18n.t('common:panel.review') })); return true }
-    case 'run': { setActivePanel('run'); toast.info(i18n.t('composer:toast.panelSwitched', { panel: i18n.t('common:panel.run') })); return true }
+    case 'review': { showRightPanelTab('review'); toast.info(i18n.t('composer:toast.panelSwitched', { panel: i18n.t('common:panel.review') })); return true }
+    case 'run': { showRightPanelTab('run'); toast.info(i18n.t('composer:toast.panelSwitched', { panel: i18n.t('common:panel.run') })); return true }
     case 'tree': { setActivePanel('tree'); return true }
     case 'settings': { toast.info(i18n.t('composer:toast.openSettingsFromSidebar')); return true }
     case 'skills':

@@ -32,10 +32,12 @@ test('activity keeps the title and opens a running session from another project'
       store.setRunState({ status: 'idle' })
     }, other)
 
-    await agent.win.getByRole('button', { name: 'Session activity' }).click()
-    const activity = agent.win.getByRole('dialog', { name: 'Session activity' })
-    await activity.getByRole('button', { name: /Background task/ }).click()
-    await expect(activity).toHaveCount(0)
+    const drawer = agent.win.getByTestId('sidebar-active-sessions-drawer')
+    const toggle = drawer.locator('button[aria-expanded]').first()
+    if ((await toggle.getAttribute('aria-expanded')) === 'false') {
+      await toggle.click()
+    }
+    await drawer.getByRole('button', { name: /Background task/ }).click()
     await expect(agent.win.getByText('Background work complete').first()).toBeVisible()
     await expect.poll(() => agent.win.evaluate(() => {
       const { useUIStore } = (window as unknown as { __piE2E: { useUIStore: { getState: () => { currentWorkspace: string } } } }).__piE2E

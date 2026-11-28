@@ -15,6 +15,8 @@ import {
   type UiCustomization,
 } from '@shared/ui-customization'
 import { projectDisplayNameKey, uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
+import { sshDistroHost } from '@shared/wsl-path'
+import { bindSshPersistence } from './ssh/ssh-config'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects, workspaceRealPathsEqual } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
@@ -127,6 +129,8 @@ export interface StoreSchema {
   wslEnvCache?: Record<string, import('./wsl/wsl-env').WslEnv>
   /** 每个 WSL 发行版内解析到的 pi SDK（启动时先用，后台再校验） */
   wslSdkCache?: Record<string, { at: number; value: import('./wsl/sdk-resolve').WslSdkResolution | null }>
+  /** 用户自定义或保存的 SSH 远程主机配置 */
+  sshHosts?: import('./ssh/ssh-config').SshHostStoredEntry[]
 }
 
 const store = new Store<StoreSchema>({
@@ -294,3 +298,12 @@ export const configStore = {
     store.set('rightPanelOrder', order)
   },
 }
+
+bindSshPersistence({
+  readHosts: () => configStore.get('sshHosts'),
+  writeHosts: (hosts) => configStore.set('sshHosts', hosts),
+  activeHost: () => {
+    const runtime = configStore.get('agentRuntime')
+    return runtime?.mode === 'wsl' ? sshDistroHost(runtime.distro) : null
+  },
+})

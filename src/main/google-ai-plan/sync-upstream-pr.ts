@@ -866,10 +866,24 @@ async function fetchText(
   return res.text()
 }
 
-async function resolveUpstreamPrRef(
-  fetchImpl: typeof fetch,
+export interface GoogleAiPlanUpstreamRef {
+  repo: string
+  ref: string
+  sha: string
+  prState?: string
+  prMerged?: boolean
+}
+
+/** A full commit id: the only kind of ref that names one fixed version of the upstream code. */
+export function isPinnedCommitSha(sha: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(sha)
+}
+
+/** Where the extension would be downloaded from right now (no download, nothing installed). */
+export async function resolveUpstreamPrRef(
+  fetchImpl: typeof fetch = globalThis.fetch,
   signal?: AbortSignal,
-): Promise<{ repo: string; ref: string; sha: string; prState?: string; prMerged?: boolean }> {
+): Promise<GoogleAiPlanUpstreamRef> {
   const apiUrl = `https://api.github.com/repos/${UPSTREAM_PR_REPO}/pulls/${UPSTREAM_PR_NUMBER}`
   try {
     const res = await fetchImpl(apiUrl, {
@@ -908,20 +922,30 @@ async function resolveUpstreamPrRef(
   }
 }
 
+/**
+ * Download the PR's files and install them as a pi extension, which runs with pi's full rights.
+ * The code comes from whatever the PR head points to, so the caller must pass the commit the user
+ * confirmed: nothing is installed unless the PR head is still exactly that commit.
+ */
 export async function fetchAndInstallGoogleAiPlanExtension(
   agentDir: string,
-  options?: { fetchImpl?: typeof fetch; signal?: AbortSignal },
+  options: { expectedSha: string; fetchImpl?: typeof fetch; signal?: AbortSignal },
 ): Promise<{ dir: string; meta: GoogleAiPlanExtensionMeta; client: GoogleAiPlanClientConfig }> {
-  const fetchImpl = options?.fetchImpl ?? globalThis.fetch
-  const resolved = await resolveUpstreamPrRef(fetchImpl, options?.signal)
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch
+  const resolved = await resolveUpstreamPrRef(fetchImpl, options.signal)
+  // The branch-name fallback (GitHub API unreachable) does not name a fixed version: refuse it.
+  if (!isPinnedCommitSha(resolved.sha)) throw new Error('UPSTREAM_SHA_UNAVAILABLE')
+  if (!isPinnedCommitSha(options.expectedSha) || resolved.sha.toLowerCase() !== options.expectedSha.toLowerCase()) {
+    throw new Error('UPSTREAM_CHANGED')
+  }
   const rawBase = `https://raw.githubusercontent.com/${resolved.repo}/${resolved.sha}`
 
   const [interactionsErrorsTs, interactionsTs, oauthTs, catalogTs, clientIdentityTs] = await Promise.all([
-    fetchText(fetchImpl, `${rawBase}/packages/ai/src/api/google-interactions-errors.ts`, options?.signal),
-    fetchText(fetchImpl, `${rawBase}/packages/ai/src/api/google-interactions.ts`, options?.signal),
-    fetchText(fetchImpl, `${rawBase}/packages/ai/src/auth/oauth/google-ai-plan.ts`, options?.signal),
-    fetchText(fetchImpl, `${rawBase}/packages/ai/catalog/providers/google-ai-plan.ts`, options?.signal),
-    fetchText(fetchImpl, `${rawBase}/packages/coding-agent/src/core/client-identity.ts`, options?.signal),
+    fetchText(fetchImpl, `${rawBase}/packages/ai/src/api/google-interactions-errors.ts`, options.signal),
+    fetchText(fetchImpl, `${rawBase}/packages/ai/src/api/google-interactions.ts`, options.signal),
+    fetchText(fetchImpl, `${rawBase}/packages/ai/src/auth/oauth/google-ai-plan.ts`, options.signal),
+    fetchText(fetchImpl, `${rawBase}/packages/ai/catalog/providers/google-ai-plan.ts`, options.signal),
+    fetchText(fetchImpl, `${rawBase}/packages/coding-agent/src/core/client-identity.ts`, options.signal),
   ])
 
   const { files, meta, client } = buildExtensionFiles({

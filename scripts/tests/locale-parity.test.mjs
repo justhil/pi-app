@@ -16,7 +16,8 @@ const PENDING_RU = []
 
 const LOCALES_DIR = join(process.cwd(), 'src/renderer/src/locales')
 
-const KEEP_AS_IS = new Set(['app.name'])
+// A sample OAuth callback URL is shown verbatim in every language.
+const KEEP_AS_IS = new Set(['app.name', 'models.googleAiPlanManualPlaceholder'])
 
 /**
  * Latin terms and brand names left untranslated by design (panel names, protocols,
@@ -38,6 +39,10 @@ const UNTRANSLATED_TERMS = new Set([
   'Board',
   'Brand',
   'Browser',
+  'Catppuccin',
+  'Light',
+  'Nord',
+  'SSH',
   'Worktrees',
   'Worktree',
   'CLI',

@@ -14,6 +14,7 @@
  * refreshed in the background at startup and on demand from settings.
  */
 
+import { isSshDistro, runSshTargetAsync } from '../ssh/ssh-exec.js'
 import { isValidWslDistroName, runWslAsync } from './wsl-exec.js'
 
 type PersistKey = 'wslEnvCache' | 'wslSdkCache'
@@ -132,6 +133,13 @@ function remember(env: WslEnv): void {
 }
 
 async function capture(distro: string): Promise<WslEnv | null> {
+  if (isSshDistro(distro)) {
+    const sshRes = await runSshTargetAsync(distro, '/', ['sh', '-s'], {
+      input: CAPTURE_SCRIPT,
+      timeout: 25_000,
+    })
+    return sshRes.status === 0 ? parseWslEnvOutput(distro, sshRes.stdout, true) : null
+  }
   // `--cd` must precede `--`; hosts without it fail fast, then we retry without.
   const withCd = await runWslAsync(['-d', distro, '--cd', '/', '--', 'sh', '-s'], {
     input: CAPTURE_SCRIPT,
@@ -160,6 +168,7 @@ export function resolveWslEnv(distro: string, opts?: { force?: boolean }): Promi
   const job = capture(distro)
     .then((env) => {
       if (env) remember(env)
+      if (!env && opts?.force && isSshDistro(distro)) return null
       return env ?? getCachedWslEnv(distro)
     })
     .finally(() => inflight.delete(distro))
@@ -181,6 +190,11 @@ let vmBoot: { distro: string; ready: Promise<void> } | null = null
  */
 export function startWslVm(distro: string): Promise<void> {
   if (vmBoot?.distro === distro) return vmBoot.ready
+  if (isSshDistro(distro)) {
+    const ready = resolveWslEnv(distro).then(() => undefined)
+    vmBoot = { distro, ready }
+    return ready
+  }
   const ready = Promise.all([
     runWslAsync(['-d', distro, '--', 'true'], { timeout: 60_000 }),
     resolveWslEnv(distro),

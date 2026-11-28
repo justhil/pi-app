@@ -35,9 +35,25 @@ export function formatCompactSessionAge(ts: number): string {
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
+import {
+  dropEdgeAt,
+  getSidebarDrag,
+  moveRanked,
+  orderByRank,
+  readSessionRanks,
+  setSidebarDrag,
+  writeSessionRanks,
+  type DropEdge,
+  type SessionRanks,
+} from './sidebar-manual-order'
 
 const NO_CHILDREN: SubagentSessionChild[] = []
 const VISIBLE_SESSION_LIMIT = 5
+
+export type SidebarDragProps = Pick<React.HTMLAttributes<HTMLElement>, 'onDragStart' | 'onDragEnd' | 'onDragOver' | 'onDragLeave' | 'onDrop'> & {
+  draggable?: boolean
+  'data-drop-edge'?: DropEdge
+}
 
 export function ProjectSessionTree({
   workspacePath,
@@ -66,6 +82,11 @@ export function ProjectSessionTree({
   const subagentSessionGroup = useUIStore((st) => st.subagentSessionGroup)
   const catalogReady = useToolCardCatalogReady()
   const [expandedSessionFiles, setExpandedSessionFiles] = useState<Set<string>>(() => new Set())
+  // Dragged order of this project's conversations (top level only), remembered in this window.
+  const projectKey = workspacePathKey(workspacePath)
+  const [ranks, setRanks] = useState<SessionRanks>(() => readSessionRanks(projectKey))
+  const [sessionDrop, setSessionDrop] = useState<{ key: string; edge: DropEdge } | null>(null)
+  const canReorder = !searchQuery.trim()
   const [showAllSessions, setShowAllSessions] = useState(false)
   const [listHover, setListHover] = useState(false)
   const listScrollRef = useRef<HTMLDivElement>(null)
@@ -74,14 +95,6 @@ export function ProjectSessionTree({
   // across streaming tokens so this tree does not re-render on every delta.
   const liveChildren = useUIStore((st) =>
     isCurrentProject ? selectActiveSubagentSessionChildren(st.timelineItems, catalogReady ? 1 : 0) : NO_CHILDREN,
-  )
-  // "+" on this project (or its home view): show the new conversation where it will live.
-  const pendingNew = useUIStore(
-    (st) =>
-      isCurrentProject &&
-      !st.ephemeralSandboxDraft &&
-      (st.pendingNewSessionPlaceholder ||
-        (!st.currentSessionId && !st.historySessionFile && !st.historyLoading && st.timelineItems.length === 0)),
   )
 
   const tree = useMemo(() => {
@@ -93,8 +106,9 @@ export function ProjectSessionTree({
       && workspacePathKey(subagentSessionGroup.parentSessionFile) !== workspacePathKey(historySessionFile)) {
       groups.push(subagentSessionGroup)
     }
-    return buildSessionTree(projectSessions, groups)
-  }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath])
+    const built = buildSessionTree(projectSessions, groups)
+    return { ...built, roots: orderByRank(built.roots, (node) => node.key, (node) => node.session.updatedAt, ranks) }
+  }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath, ranks])
   const pinnedSessions = useUIStore((st) => st.pinnedSessions)
   // Keep pinned sessions visible inside their project folder so pinning never removes them from context.
   const visibleRoots = useMemo(() => filterSessionTree(tree.roots, searchQuery), [tree, searchQuery])
@@ -187,15 +201,52 @@ export function ProjectSessionTree({
     const parentActive = currentSessionId === s.sessionId
       && workspacePathsEqual(workspacePath, currentWorkspace)
       && workspacePathKey(historySessionFile) === node.key
+    // A top-level row also takes drops from its own project's rows to change their order.
+    const acceptsDrop = (e: React.DragEvent) => {
+      const drag = getSidebarDrag()
+      return depth === 0 && canReorder && drag?.kind === 'session' && drag.projectKey === projectKey && drag.key !== node.key ? drag : null
+    }
     return (
       <div
         key={node.key}
         className="mb-0.5"
         data-session-file={sessionFile}
+        data-drop-edge={sessionDrop?.key === node.key ? sessionDrop.edge : undefined}
         draggable={!!sessionFile && !node.liveChild}
         onDragStart={(e) => {
           if (!sessionFile) return
+          // Without this a child row's drag would bubble up and carry its parent instead.
+          e.stopPropagation()
           startSessionDrag(e, { sessionId: s.sessionId, sessionFile, workspace: workspacePath, title: s.title || s.firstMessage || '' })
+          setSidebarDrag(depth === 0 ? { kind: 'session', projectKey, key: node.key } : null)
+        }}
+        onDragEnd={(e) => {
+          e.stopPropagation()
+          setSidebarDrag(null)
+          setSessionDrop(null)
+        }}
+        onDragOver={(e) => {
+          if (!acceptsDrop(e)) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'move'
+          const edge = dropEdgeAt(e)
+          setSessionDrop((previous) => previous?.key === node.key && previous.edge === edge ? previous : { key: node.key, edge })
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+          setSessionDrop((previous) => previous?.key === node.key ? null : previous)
+        }}
+        onDrop={(e) => {
+          const drag = acceptsDrop(e)
+          if (!drag) return
+          e.preventDefault()
+          e.stopPropagation()
+          const next = moveRanked(visibleRoots, drag.key, node.key, dropEdgeAt(e), (row) => row.key, (row) => row.session.updatedAt, ranks)
+          setRanks(next)
+          writeSessionRanks(projectKey, next)
+          setSessionDrop(null)
+          setSidebarDrag(null)
         }}
       >
         <div
@@ -411,16 +462,6 @@ export function ProjectSessionTree({
         <p>{t('common:sidebar.sessionReadFailed')}</p>
         <button type="button" className="workbench-button mt-1" disabled={loading} onClick={onRetry}>{t('common:retry')}</button>
       </div>}
-      {pendingNew && !searchQuery.trim() ? (
-        <div className="mb-0.5">
-          <div className="nav-row nav-row-active sidebar-session-row sidebar-pending-row flex h-[34px] items-center gap-2 rounded-lg pl-8 pr-2" aria-current="page">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-              {t('common:sidebar.newSessionDraft')}
-            </span>
-          </div>
-        </div>
-      ) : null}
       <div
         className="relative"
         onMouseEnter={() => setListHover(true)}
@@ -437,7 +478,7 @@ export function ProjectSessionTree({
           {loading ? (
             <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
           ) : visibleRoots.length === 0 ? (
-            !error && !pendingNew && projectSessions.length === 0 && (
+            !error && projectSessions.length === 0 && (
               <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
             )
           ) : shownRoots.map((node) => renderSession(node))}
@@ -475,6 +516,7 @@ export function ProjectDiskRow({
   onProjectContextMenu,
   onBranchSwitched,
   sessionTree,
+  headerDragProps,
 }: {
   path: string
   name: string
@@ -488,6 +530,8 @@ export function ProjectDiskRow({
   onProjectContextMenu: (e: React.MouseEvent) => void
   onBranchSwitched?: () => void
   sessionTree: React.ReactNode
+  /** Drag-to-reorder handlers for a top-level project; worktrees inside a group get none. */
+  headerDragProps?: SidebarDragProps
 }) {
   const { t } = useTranslation()
   const [branchOpen, setBranchOpen] = useState(false)
@@ -501,36 +545,32 @@ export function ProjectDiskRow({
   return (
     <div key={path} className="sidebar-project-row" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
+        // The name wins the width: the "+" only takes room while the row is hovered or focused
+        // (absolute, with padding reserved then), and the branch chip gives way before the name.
         className={cn(
-          'group/proj nav-row flex h-[34px] items-center gap-2 rounded-lg pl-2 pr-1.5',
-          branchOpen && 'bg-[var(--sidebar-row-hover)]',
+          'group/proj nav-row relative flex h-[34px] items-center gap-2 rounded-lg pl-2 pr-2 focus-within:pr-8 hover:pr-8',
+          branchOpen && 'bg-[var(--sidebar-row-hover)] pr-8',
         )}
+        {...headerDragProps}
       >
         <button
           type="button"
-          onClick={onToggleOpen}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-foreground-secondary/75 transition-colors hover:text-foreground"
-          aria-label={t('common:sidebar.toggleProject', { name })}
+          onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
+          className="sidebar-project-hit flex h-full min-w-0 flex-auto items-center gap-2 text-left focus-visible:outline-none"
+          title={shortBranch ? `${path} (${shortBranch})` : path}
           aria-expanded={open}
+          aria-current={active ? 'location' : undefined}
         >
           {worktree ? (
             <ChevronRight
-              className="chevron-expand h-3 w-3 shrink-0"
+              className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/75"
               data-open={open ? 'true' : 'false'}
             />
           ) : open ? (
-            <FolderOpen className="h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+            <FolderOpen className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/75" strokeWidth={1.6} />
           ) : (
-            <Folder className="h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+            <Folder className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/75" strokeWidth={1.6} />
           )}
-        </button>
-        <button
-          type="button"
-          onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
-          className="sidebar-project-hit flex min-w-0 flex-1 items-center py-1 text-left"
-          title={shortBranch ? `${path} (${shortBranch})` : path}
-          aria-current={active ? 'location' : undefined}
-        >
           <span
             className={cn(
               'min-w-0 truncate text-[13px] leading-5',
@@ -555,11 +595,13 @@ export function ProjectDiskRow({
               setBranchOpen((v) => !v)
             }}
             className={cn(
-              'group/br inline-flex h-[20px] max-w-[76px] shrink-0 items-center gap-0.5 rounded px-1 font-mono text-[10px] transition-all hover:bg-foreground/[0.08] hover:text-foreground disabled:opacity-50',
+              // shrink-[100]: when the row is tight this chip shrinks long before the project name does.
+              'group/br inline-flex h-[20px] min-w-0 max-w-[76px] shrink-[100] items-center gap-0.5 overflow-hidden rounded px-1 font-mono text-[10px] transition-colors hover:bg-foreground/[0.08] hover:text-foreground disabled:opacity-50',
               branchOpen
-                ? 'bg-foreground/[0.09] text-foreground opacity-100'
+                ? 'bg-foreground/[0.09] text-foreground'
                 : isDefaultBranch
-                  ? 'text-foreground-secondary/50 opacity-0 group-hover/proj:opacity-80 focus-visible:opacity-100'
+                  ? // main / master: no room taken until the row is hovered or focused.
+                    'sr-only text-foreground-secondary/50 focus-visible:not-sr-only group-hover/proj:not-sr-only group-hover/proj:opacity-80'
                   : 'text-foreground-secondary/75 opacity-80 group-hover/proj:opacity-100',
             )}
           >
@@ -581,7 +623,7 @@ export function ProjectDiskRow({
           }}
           aria-label={t('common:newSession')}
           title={t('common:newSession')}
-          className="sidebar-section-action ml-0.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/proj:opacity-100"
+          className="sidebar-section-action absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/proj:opacity-100"
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>

@@ -6,6 +6,7 @@
 
 import { spawn, type ChildProcess } from 'child_process'
 import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
+import { isSshDistro, spawnSshTarget } from '../ssh/ssh-exec.js'
 import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
 import { syncWslBundle } from './bundle-sync'
 import { getCachedWslEnv, wslNodeCommand } from './wsl-env.js'
@@ -64,6 +65,17 @@ export interface SpawnWslWorkerOptions {
 }
 
 export function spawnWorkerInWsl(opts: SpawnWslWorkerOptions): ChildProcess {
+  if (isSshDistro(opts.distro)) {
+    return spawnSshTarget({
+      distro: opts.distro,
+      cwd: opts.wslCwd,
+      commandArgs: wslNodeCommand(opts.distro, opts.workerWslPath),
+      envVars: {
+        [WORKER_STDIO_ENV]: '1',
+        [WORKER_WSL_DISTRO_ENV]: opts.distro,
+      },
+    })
+  }
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
     // The user's node + login PATH (see wsl-env.ts): same runtime as their terminal, and the

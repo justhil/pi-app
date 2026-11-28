@@ -1,5 +1,6 @@
 import { stat } from 'fs/promises'
 import { join, resolve } from 'path'
+import { isSshWindowsPath } from './ssh/ssh-exec'
 import { type ExtensionProbeResult } from '../extension-compat/extension-probe'
 import { getActiveAgentDir, getActiveDesktopDir, getActiveHomeDir } from '../extension-compat/active-dirs'
 import { sessionPreviewProcess } from './session-preview-process'
@@ -23,6 +24,7 @@ const entries = new Map<string, Entry>()
 
 // Async: in WSL mode these are \\wsl.localhost paths, where even a stat is a 9p round trip.
 async function mtimeOf(path: string): Promise<number> {
+  if (isSshWindowsPath(path)) return 0
   try {
     return (await stat(path)).mtimeMs
   } catch {

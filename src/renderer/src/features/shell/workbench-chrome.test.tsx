@@ -82,13 +82,13 @@ describe('Workbench polling', () => {
 })
 
 describe('Workbench status and popovers', () => {
-  it('opens activity from the left summary and returns focus on Escape', async () => {
+  it('omits duplicate session board button and returns focus on Escape from resources', async () => {
     render(<StatusBar />)
-    const trigger = screen.getByRole('button', { name: 'common:board.title' })
+    expect(screen.queryByRole('button', { name: 'common:board.title' })).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'common:statusBar.resources' })
     fireEvent.click(trigger)
-    const panel = await screen.findByRole('dialog', { name: 'common:board.title' })
+    const panel = await screen.findByRole('dialog', { name: 'common:statusBar.resources' })
     expect(within(panel).getByText(session.title)).toBeInTheDocument()
-    expect(within(panel).queryByText('common:statusBar.kill')).not.toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'common:close' })).toHaveFocus()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -109,7 +109,7 @@ describe('Workbench status and popovers', () => {
 
   it('dismisses on outside pointer input without an overlay blocking the app', async () => {
     render(<><input aria-label="outside" /><StatusBar /></>)
-    fireEvent.click(screen.getByRole('button', { name: 'common:board.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common:statusBar.resources' }))
     await screen.findByRole('dialog')
     fireEvent.pointerDown(screen.getByRole('textbox', { name: 'outside' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -124,15 +124,6 @@ describe('Workbench status and popovers', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common:statusBar.resources' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('common:statusBar.loadFailed')
     expect(screen.queryByText('common:statusBar.noWorkers')).not.toBeInTheDocument()
-  })
-
-  it('routes a session to its owning project instead of the current one', async () => {
-    useUIStore.setState({ currentWorkspace: '/other' })
-    render(<StatusBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'common:board.title' }))
-    fireEvent.click(await screen.findByRole('button', { name: new RegExp(session.title) }))
-    await waitFor(() => expect(mocks.activateWorkspace).toHaveBeenCalledWith('/project', { sessionId: 'wait', sessionFile: session.sessionFile }))
-    expect(mocks.switchSession).not.toHaveBeenCalled()
   })
 })
 
