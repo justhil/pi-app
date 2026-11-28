@@ -729,13 +729,11 @@
   .sidebar-session-row {
     cursor: pointer;
   }
+  /* Section headers are labels, not rows: hover brightens the title and chevron instead of painting
+     a fill that starts flush at the text and stops short of the row edges below it. */
   .sidebar-section-hit {
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
-  }
-  .sidebar-section-hit:hover {
-    background-color: var(--bg-hover);
   }
   /* Electron frameless: drag title region */
   .electron-drag {
@@ -1664,7 +1662,6 @@
   }
   .dark .row-hover:hover,
   .dark .sidebar-project-hit:hover,
-  .dark .sidebar-section-hit:hover,
   .dark .chrome-icon-btn:hover {
     background-color: var(--bg-hover);
   }
@@ -2771,6 +2768,16 @@
   font-weight: 400;
   letter-spacing: 0;
   color: hsl(var(--foreground) / 0.45);
+  transition: color 120ms ease;
+}
+/* Unlayered like the title color above, so hover wins over it and over the chevron's utility color. */
+.sidebar-section-hit:hover .sidebar-section-title,
+.sidebar-section-hit:hover .chevron-expand {
+  color: hsl(var(--foreground) / 0.8);
+}
+.sidebar-section-hit:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 .sidebar-section-action {
   display: inline-flex;

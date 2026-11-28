@@ -816,7 +816,9 @@ export function ProjectSidebar({
           data-pi-slot="sidebar-header"
           className="flex h-12 shrink-0 items-center justify-between pl-5 pr-3 select-none"
         >
-          <span className="text-[16px] font-semibold tracking-[-0.025em] text-foreground">pi</span>
+          {/* Lowercase "pi" sits low in its line box (x-height + descender): lift it so its body
+              lines up with the rail's pi mark and the search icon on the same 48px row. */}
+          <span className="-translate-y-0.5 text-[16px] font-semibold leading-none tracking-[-0.025em] text-foreground">pi</span>
           <div className="flex items-center gap-0.5">{renderSearchTrigger()}</div>
         </div>
       ) : (
@@ -895,13 +897,14 @@ export function ProjectSidebar({
                 aria-current={isNewChatActive ? 'page' : undefined}
                 onClick={handleQuickNewThread}
                 className={cn(
-                  'nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors',
+                  // Same 15px icon + gap-2 as project rows, so every label starts on one column.
+                  'nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] transition-colors',
                   isNewChatActive
                     ? 'nav-row-active font-medium text-foreground'
                     : 'text-foreground/90 hover:text-foreground',
                 )}
               >
-                <Plus className="h-[16px] w-[16px] shrink-0 text-foreground-secondary/85" strokeWidth={1.7} />
+                <Plus className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/85" strokeWidth={1.7} />
                 <span className="truncate">{t('common:nav.new')}</span>
               </button>
               {!showBrand ? renderSearchTrigger() : null}
@@ -912,7 +915,7 @@ export function ProjectSidebar({
               aria-current={isPluginsActive ? 'page' : undefined}
               onClick={() => onSelectMainPage?.('plugins')}
               className={cn(
-                'nav-row flex h-[34px] w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors',
+                'nav-row flex h-[34px] w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-[13px] transition-colors',
                 isPluginsActive
                   ? 'nav-row-active font-medium text-foreground'
                   : 'text-foreground/90 hover:text-foreground',
