@@ -8,7 +8,7 @@ import { launchAgentApp, listen, startScriptedModel } from './helpers/scripted-a
 test.describe('branch switcher', () => {
   test.setTimeout(120_000)
 
-  test('status bar shows the branch, switches, and stashes conflicting changes on request', async () => {
+  test('branch trigger shows the branch, switches, and stashes conflicting changes on request', async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-branch-'))
     const project = path.join(home, 'code', 'demo')
     fs.mkdirSync(project, { recursive: true })
@@ -29,7 +29,8 @@ test.describe('branch switcher', () => {
     const agent = await launchAgentApp(await listen(model), { home })
     const { win } = agent
     try {
-      const trigger = win.locator('.branch-status-trigger')
+      // The trigger lives under the composer by default (status bar only when configured): its slot is stable in both.
+      const trigger = win.locator('[data-pi-slot="composer-branch-btn"]')
       await agent.newSession()
       await expect(trigger).toContainText('main', { timeout: 15_000 })
 
