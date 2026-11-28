@@ -31,15 +31,31 @@ function sessionFileFromRaw(raw: Record<string, unknown>): string | undefined {
   return typeof raw.sessionFile === 'string' && raw.sessionFile ? raw.sessionFile : undefined
 }
 
+function readDeadlineTiming(raw: Record<string, unknown>): { timeoutMs?: number; deadlineAt?: number } {
+  const rawTimeout = typeof raw.timeout === 'number' && Number.isFinite(raw.timeout) && raw.timeout > 0 ? Math.round(raw.timeout) : undefined
+  const rawDeadline =
+    typeof raw.deadlineAt === 'number' && Number.isFinite(raw.deadlineAt) && raw.deadlineAt > 0
+      ? raw.deadlineAt
+      : rawTimeout
+        ? Date.now() + rawTimeout
+        : undefined
+  return {
+    ...(rawTimeout ? { timeoutMs: rawTimeout } : {}),
+    ...(rawDeadline ? { deadlineAt: rawDeadline } : {}),
+  }
+}
+
 function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
   const id = raw.id as string
   const method = raw.method as string
   const sessionFile = sessionFileFromRaw(raw)
+  const timing = readDeadlineTiming(raw)
   if (method === 'custom' && raw.kind === 'ask_user_question') {
     return {
       id,
       method: 'ask_user_question',
       questions: (raw.questions as AskQuestionPayload[]) || [],
+      ...timing,
       sessionFile,
     }
   }
@@ -69,6 +85,7 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
       method: 'select',
       title: raw.title as string,
       options: (raw.options as string[]) || [],
+      ...timing,
       sessionFile,
     }
   }
@@ -78,6 +95,7 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
       method: 'confirm',
       title: raw.title as string,
       message: raw.message as string,
+      ...timing,
       sessionFile,
     }
   }
@@ -87,6 +105,16 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
       method: 'input',
       title: raw.title as string,
       placeholder: raw.placeholder as string | undefined,
+      ...timing,
+      sessionFile,
+    }
+  }
+  if (method === 'editor') {
+    return {
+      id,
+      method: 'editor',
+      title: (raw.title as string) || i18n.t('extension:dialogBody.needsAction'),
+      prefill: typeof raw.prefill === 'string' ? raw.prefill : undefined,
       sessionFile,
     }
   }
@@ -141,7 +169,8 @@ export function ensureExtensionUIChannel(): void {
       alertTrace('extension notify', { notifyType: t, show, msg: msg?.slice(0, 120) })
       if (!show) return
       const running = useUIStore.getState().runState.status === 'running'
-      if (!running && t !== 'error') {
+      const fromSlash = req.slashDispatched === true
+      if (!running && !fromSlash && t !== 'error') {
         alertTrace('skip notify toast (not running)', { notifyType: t })
         return
       }
@@ -182,7 +211,7 @@ export function ensureExtensionUIChannel(): void {
         ? p.payload.title || i18n.t('extension:imageReview.defaultTitle')
         : p.method === 'ask_user_question'
           ? i18n.t('extension:dialogBody.askUserQuestion')
-          : p.method === 'confirm' || p.method === 'select' || p.method === 'input'
+          : p.method === 'confirm' || p.method === 'select' || p.method === 'input' || p.method === 'editor'
             ? p.title || i18n.t('extension:dialogBody.needsAction')
             : i18n.t('extension:dialogBody.needsAction')
     // Desktop alert only when running (idle dialog doesn't need system notification)

@@ -94,6 +94,8 @@ export function QuestionnaireOptions({
     <div className="space-y-1.5" role={multi ? 'group' : 'radiogroup'} aria-label={question.question}>
       {question.options.map((option, index) => {
         const checked = !draft.useCustom && draft.selected.includes(option.label)
+        const isRecommended = Boolean(question.recommended && question.recommended === option.label)
+        const recReason = isRecommended ? question.recommendedBecause?.trim() : undefined
         const desc = option.description?.trim() ?? ''
         const descRich = Boolean(desc && (hasRichMarkdownSyntax(desc) || desc.includes('\n')))
         const descLong = Boolean(desc && isLongDescription(desc))
@@ -122,9 +124,19 @@ export function QuestionnaireOptions({
             >
               <Indicator checked={checked} multi={multi} />
               <span className="min-w-0 flex-1">
-                <span className="block break-words [overflow-wrap:anywhere] text-[13px] font-medium leading-5">
-                  {option.label}
+                <span className="flex flex-wrap items-center gap-1.5 break-words [overflow-wrap:anywhere] text-[13px] font-medium leading-5">
+                  <span>{option.label}</span>
+                  {isRecommended && (
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-[var(--brand)]/35 bg-[var(--brand)]/10 px-1.5 py-0 text-[10.5px] font-medium leading-4 text-[var(--brand)]">
+                      {t('extension:qRecommended')}
+                    </span>
+                  )}
                 </span>
+                {recReason && (
+                  <span className="mt-0.5 block text-[11.5px] leading-[1.4] text-[var(--brand)]/85">
+                    {recReason}
+                  </span>
+                )}
                 {desc && (
                   <span
                     className={cn(

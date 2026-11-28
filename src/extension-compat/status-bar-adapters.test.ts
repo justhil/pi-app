@@ -33,13 +33,13 @@ describe('statusBar adapter schema, validation & custom protocol decoupling', ()
     expect(resolveAdapterText(rewindHook!, 'en').statusBar.title).toBe('Rewind Snapshots')
     expect(resolveAdapterText(rewindHook!, 'ru').statusBar.title).toBe('Снимки Rewind')
 
-    // All 43 builtin declarations pass schema validation and expose exact 23 Group A install specs
+    // All builtin declarations pass schema validation and expose exact 25 Group A install specs
     for (const raw of BUILTIN_ADAPTERS) {
       const parsed = parseAdapterDeclaration(raw)
       expect('adapter' in parsed, `failed validation for ${raw.id}`).toBe(true)
     }
     const installable = BUILTIN_ADAPTERS.filter((a) => Boolean(a.install?.source))
-    expect(installable).toHaveLength(23)
+    expect(installable).toHaveLength(25)
     expect(installable.some((a) => a.id === 'pi-continue')).toBe(false)
     expect(installable.some((a) => a.id === 'trellis')).toBe(false)
     expect(installable.some((a) => a.id === 'pi-rewind')).toBe(false)

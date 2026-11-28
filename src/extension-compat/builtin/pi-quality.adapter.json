@@ -1,18 +1,32 @@
 {
+  "$schema": "pi-desktop-adapter/v1",
   "id": "pi-quality",
   "displayName": "Quality Gate",
-  "description": "完成闸门、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
+  "description": "完成闸门（/gate）、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
   "match": {
     "names": [
       "pi-quality"
     ],
     "commands": [
+      "/gate",
       "/quality",
       "/review"
     ]
   },
-  "tier": "partial",
+  "tier": "native",
+  "statusBar": {
+    "protocol": "status-pill-v1",
+    "statusKeys": [
+      "pi-quality"
+    ],
+    "icon": "CheckCircle2",
+    "title": "Quality Gate",
+    "clickAction": {
+      "type": "config-page"
+    }
+  },
   "slash": {
+    "/gate": "execute",
     "/quality": "config-page",
     "/review": "execute"
   },
@@ -21,7 +35,12 @@
     "fileKeyMap": {
       "gate": "gate",
       "diagnostics": "diagnostics",
-      "model": "model"
+      "maxRejections": "maxRejections",
+      "model": "model",
+      "reviewModel": "reviewModel"
+    },
+    "envOverride": {
+      "gate": "PI_QUALITY_GATE"
     },
     "sections": [
       {
@@ -29,24 +48,42 @@
         "fields": [
           {
             "key": "gate",
-            "type": "boolean",
-            "label": "启用完成闸门",
-            "default": true,
-            "description": "代理准备结束回合时，先由独立模型对照需求验收"
+            "type": "select",
+            "label": "完成闸门模式",
+            "default": "goal",
+            "options": [
+              "goal",
+              "on",
+              "off"
+            ],
+            "description": "goal：仅在 /goal 调用 goal_complete 时拦截验收；on：每轮结算均验收；off：关闭"
+          },
+          {
+            "key": "maxRejections",
+            "type": "number",
+            "label": "单轮最大连续驳回次数",
+            "default": 2
           },
           {
             "key": "diagnostics",
             "type": "boolean",
             "label": "启用编辑后诊断",
             "default": true,
-            "description": "在 edit / write 后自动对修改文件执行语法、lint 与类型检查"
+            "description": "在 edit / write 后自动对修改文件执行语法与类型快速检查"
           },
           {
             "key": "model",
             "type": "text",
-            "label": "验收与审查模型",
-            "default": "CloseAI/gemini-3.8-flash-high",
+            "label": "完成闸门验收模型",
+            "default": "CloseAI/gemini-4-hydrogen",
             "description": "格式为 provider/modelId；未找到时回退使用当前会话模型"
+          },
+          {
+            "key": "reviewModel",
+            "type": "text",
+            "label": "/review 独立审查模型",
+            "default": "CloseAI/gemini-4-carbon-high",
+            "description": "执行 /review 干净上下文代码盲审时使用的模型"
           }
         ],
         "i18n": {
@@ -62,60 +99,78 @@
         }
       }
     ],
-    "note": "设置保存到 ~/.pi/agent/pi-quality.json。无参 /quality 打开此配置页，带参（如 /quality gate off）在会话内执行；/review 使用无历史干净上下文审查当前未提交的 Git 改动。",
+    "note": "设置保存到 ~/.pi/agent/pi-quality.json。会话内可通过 /gate [goal|on|off] 切换当前完成闸门模式（或点击底部状态栏胶囊打开此页），通过 /review 启动干净上下文只读代码审查。",
     "i18n": {
       "zh": {
-        "note": "设置保存到 ~/.pi/agent/pi-quality.json。无参 /quality 打开此配置页，带参（如 /quality gate off）在会话内执行；/review 使用无历史干净上下文审查当前未提交的 Git 改动。"
+        "note": "设置保存到 ~/.pi/agent/pi-quality.json。会话内可通过 /gate [goal|on|off] 切换当前完成闸门模式（或点击底部状态栏胶囊打开此页），通过 /review 启动干净上下文只读代码审查。"
       },
       "en": {
-        "note": "Saves to ~/.pi/agent/pi-quality.json. Bare /quality opens this page; /review runs a clean-context review of uncommitted git changes."
+        "note": "Saves to ~/.pi/agent/pi-quality.json. Use /gate [goal|on|off] in chat to switch the gate mode (or click the status bar pill to open this page), and /review for clean-context read-only code review."
       },
       "ru": {
-        "note": "Сохраняется в ~/.pi/agent/pi-quality.json. /quality без аргументов открывает эту страницу; с аргументами (например /quality gate off) выполняется в сессии. /review запускает проверку незафиксированных изменений Git в чистом контексте."
+        "note": "Сохраняется в ~/.pi/agent/pi-quality.json. Команда /gate [goal|on|off] переключает режим контроля в сессии (клик по индикатору внизу открывает эту страницу), /review запускает ревью кода в чистом контексте."
       }
     }
   },
   "i18n": {
     "zh": {
       "displayName": "Quality Gate",
-      "description": "完成闸门、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
+      "description": "完成闸门（/gate）、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
+      "statusBar": {
+        "title": "质量门禁"
+      },
       "fieldLabels": {
-        "gate": "启用完成闸门",
+        "gate": "完成闸门模式",
+        "maxRejections": "单轮最大连续驳回次数",
         "diagnostics": "启用编辑后诊断",
-        "model": "验收与审查模型"
+        "model": "完成闸门验收模型",
+        "reviewModel": "/review 独立审查模型"
       },
       "fieldDescriptions": {
-        "gate": "代理准备结束回合时，先由独立模型对照需求验收",
-        "diagnostics": "在 edit / write 后自动对修改文件执行语法、lint 与类型检查",
-        "model": "格式为 provider/modelId；未找到时回退使用当前会话模型"
+        "gate": "goal：仅在 /goal 调用 goal_complete 时拦截验收；on：每轮结算均验收；off：关闭",
+        "diagnostics": "在 edit / write 后自动对修改文件执行语法与类型快速检查",
+        "model": "格式为 provider/modelId；未找到时回退使用当前会话模型",
+        "reviewModel": "执行 /review 干净上下文代码盲审时使用的模型"
       }
     },
     "en": {
       "displayName": "Quality Gate",
-      "description": "Completion gate, post-edit diagnostics, and /review clean-context code review (~/.pi/agent/pi-quality.json)",
+      "description": "Completion gate (/gate), post-edit diagnostics, and /review clean-context code review (~/.pi/agent/pi-quality.json)",
+      "statusBar": {
+        "title": "Quality Gate"
+      },
       "fieldLabels": {
-        "gate": "Completion gate",
+        "gate": "Completion gate mode",
+        "maxRejections": "Max consecutive rejections",
         "diagnostics": "Post-edit diagnostics",
-        "model": "Gate & review model"
+        "model": "Gate verification model",
+        "reviewModel": "/review model"
       },
       "fieldDescriptions": {
-        "gate": "Verify task completion with an independent model before the agent stops",
-        "diagnostics": "Run syntax, lint, and type checks after edit / write",
-        "model": "Format: provider/modelId; falls back to the current session model"
+        "gate": "goal: verify only on /goal completion; on: verify every turn; off: disabled",
+        "diagnostics": "Run fast syntax/type checks after edit / write",
+        "model": "Format: provider/modelId; falls back to the current session model",
+        "reviewModel": "Model used for clean-context /review inspections"
       }
     },
     "ru": {
       "displayName": "Quality Gate",
-      "description": "Контроль завершения, диагностика после правок и ревью кода в чистом контексте /review (~/.pi/agent/pi-quality.json)",
+      "description": "Контроль завершения (/gate), диагностика после правок и ревью /review в чистом контексте (~/.pi/agent/pi-quality.json)",
+      "statusBar": {
+        "title": "Контроль качества"
+      },
       "fieldLabels": {
-        "gate": "Контроль завершения",
+        "gate": "Режим контроля завершения",
+        "maxRejections": "Макс. отклонений подряд",
         "diagnostics": "Диагностика после правок",
-        "model": "Модель контроля и ревью"
+        "model": "Модель проверки завершения",
+        "reviewModel": "Модель для /review"
       },
       "fieldDescriptions": {
-        "gate": "Перед завершением хода независимая модель проверяет выполнение требований",
-        "diagnostics": "Автоматически запускать проверку синтаксиса, lint и типов после edit / write",
-        "model": "Формат: provider/modelId; если не найдена, используется модель текущей сессии"
+        "gate": "goal: проверять только goal_complete в /goal; on: проверять каждый ход; off: выключено",
+        "diagnostics": "Быстрая проверка синтаксиса и типов после edit / write",
+        "model": "Формат: provider/modelId; иначе используется модель сессии",
+        "reviewModel": "Модель для проверки кода /review в чистом контексте"
       }
     }
   }

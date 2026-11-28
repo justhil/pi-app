@@ -44,7 +44,8 @@ function decorateTool(registered: RegisteredTool): RegisteredTool {
           toolCallId,
           questions,
           signal,
-          (id, rows, abortSignal) => bridge.requestQuestionnaire(id, rows, abortSignal),
+          (id, rows, abortSignal, timeoutMs) =>
+            bridge.requestQuestionnaire(id, rows, abortSignal, timeoutMs),
         )
         return execute(toolCallId, params, signal, onUpdate, {
           ...context,

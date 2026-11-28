@@ -80,6 +80,8 @@ export type WorkerMutableState = {
   cancelledPromptTicket: number
   /** Count of fresh prompts waiting for previous turn to finish settling. */
   pendingFreshPrompts: number
+  /** True while a user-initiated `/...` slash prompt is executing so idle command notifications reach the UI. */
+  slashCommandActive: boolean
   promptSent: boolean
 }
 
@@ -110,6 +112,7 @@ export const st: WorkerMutableState = {
   promptTicket: 0,
   cancelledPromptTicket: 0,
   pendingFreshPrompts: 0,
+  slashCommandActive: false,
   promptSent: false,
 }
 
@@ -552,13 +555,19 @@ function traceWorkerUi(
 
 function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').ExtensionUIRequest): void {
   if (req.method === 'notify') {
-    if (!st.agentTurnActive) {
+    if (!st.agentTurnActive && !st.slashCommandActive) {
       if (req.notifyType === 'error') {
         traceWorkerUi(req, true)
         sendToMain({ type: 'extension-ui-request', request: req })
       } else {
         traceWorkerUi(req, false)
       }
+      return
+    }
+    if (st.slashCommandActive && !st.agentTurnActive) {
+      const tagged = { ...req, slashDispatched: true }
+      traceWorkerUi(tagged, true)
+      sendToMain({ type: 'extension-ui-request', request: tagged })
       return
     }
   }

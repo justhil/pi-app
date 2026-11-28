@@ -21,13 +21,15 @@ export type ExtensionUIRequest =
   | { id: string; method: 'confirm'; title: string; message: string; timeout?: number }
   | { id: string; method: 'input'; title: string; placeholder?: string; timeout?: number }
   | { id: string; method: 'editor'; title: string; prefill?: string }
-  | { id: string; method: 'notify'; message: string; notifyType?: 'info' | 'warning' | 'error' }
+  | { id: string; method: 'notify'; message: string; notifyType?: 'info' | 'warning' | 'error'; slashDispatched?: boolean }
   | {
       id: string
       method: 'custom'
       kind: 'ask_user_question'
       questions: ExtensionUIQuestion[]
       toolCallId?: string
+      timeout?: number
+      deadlineAt?: number
     }
   | { id: string; method: 'custom'; kind: 'image_review'; image: string; title: string; question: string; context?: string; options: string[]; allowFeedback: boolean }
 
@@ -45,6 +47,7 @@ export type DesktopUIBridge = {
     toolCallId: string,
     questions: ExtensionUIQuestion[],
     signal?: AbortSignal,
+    timeoutMs?: number,
   ) => Promise<ExtensionUIQuestionnaireResult>
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
   setInteractArgs: (
@@ -313,19 +316,31 @@ export function createDesktopUIBridge(
       p.cleanup()
       p.resolve(response)
     },
-    requestQuestionnaire(toolCallId, questions, signal) {
+    requestQuestionnaire(toolCallId, questions, signal, timeoutMs) {
       lastAskPayload = null
       const id = randomUUID()
+      const validTimeout =
+        typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
+          ? Math.round(timeoutMs)
+          : undefined
+      const deadlineAt = validTimeout ? Date.now() + validTimeout : undefined
       return createDialogPromise(
         emitReq,
         pending,
-        { id, method: 'custom', kind: 'ask_user_question', toolCallId, questions },
+        {
+          id,
+          method: 'custom',
+          kind: 'ask_user_question',
+          toolCallId,
+          questions,
+          ...(validTimeout ? { timeout: validTimeout, deadlineAt } : {}),
+        },
         (response) =>
           response.cancelled
             ? { cancelled: true, answers: [] }
             : (response.result as ExtensionUIQuestionnaireResult),
         { cancelled: true, answers: [] },
-        { signal, ...dismissOpts },
+        { signal, ...(validTimeout ? { timeout: validTimeout } : {}), ...dismissOpts },
       )
     },
     setInteractArgs(schema, args, defaults) {

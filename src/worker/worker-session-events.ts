@@ -253,20 +253,31 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       if ((msg as { role?: string })?.role === 'custom') {
         deps.captureAdapterCustomMessage?.(msg)
       }
+      const isDisplayCustom =
+        (msg as { role?: string; display?: boolean })?.role === 'custom' &&
+        (msg as { display?: boolean })?.display === true
+      const customText = isDisplayCustom ? extractTextFromPiMessage(msg).trim() : ''
       if (msg?.role === 'assistant') {
         pendingTerminalError = terminalErrorFromAssistant(msg)
         lastAssistantPreview = extractTextFromPiMessage(msg)
+      } else if (customText) {
+        lastAssistantPreview = customText
       } else if (msg?.role === 'user') {
         lastUserPreview = normalizeUserMessageDisplayText(extractTextFromPiMessage(msg))
       }
-      const text = msg?.role === 'assistant' ? extractTextFromPiMessage(msg) : undefined
+      const text =
+        msg?.role === 'assistant'
+          ? extractTextFromPiMessage(msg)
+          : customText
+            ? customText
+            : undefined
       const toolResultCallId =
         msg?.role === 'toolResult' ? String((msg as { toolCallId?: unknown }).toolCallId || '') : ''
       const toolResultName =
         msg?.role === 'toolResult' ? String((msg as { toolName?: unknown }).toolName || '') : ''
       queueMicrotask(() => {
         const entryId = session?.sessionManager?.getLeafId?.() ?? undefined
-        if (msg?.role === 'assistant') {
+        if (msg?.role === 'assistant' || customText) {
           deps.emit({
             ...base,
             type: 'message',

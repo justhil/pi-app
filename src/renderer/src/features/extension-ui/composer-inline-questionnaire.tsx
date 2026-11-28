@@ -28,6 +28,7 @@ import {
   type QuestionDraft,
 } from './questionnaire-model'
 import { QuestionnaireOptions } from './questionnaire-options'
+import { QuestionnaireCountdownBadge } from './questionnaire-countdown-badge'
 import { QuestionnaireMarkdown } from './questionnaire-markdown'
 import type { AskQuestionPayload } from './questionnaire-dialog'
 
@@ -81,6 +82,8 @@ export function ComposerInlineQuestionnaire() {
       key={activePending.id}
       requestId={activePending.id}
       questions={activePending.questions}
+      deadlineAt={activePending.deadlineAt}
+      timeoutMs={activePending.timeoutMs}
     />
   )
 }
@@ -88,9 +91,13 @@ export function ComposerInlineQuestionnaire() {
 function InlineQuestionnaireCard({
   requestId,
   questions,
+  deadlineAt,
+  timeoutMs,
 }: {
   requestId: string
   questions: AskQuestionPayload[]
+  deadlineAt?: number
+  timeoutMs?: number
 }) {
   const { t } = useTranslation()
   const clearAfterRespond = useExtensionUIStore((s) => s.clearAfterRespond)
@@ -286,6 +293,7 @@ function InlineQuestionnaireCard({
         </button>
 
         <div className="flex shrink-0 items-center gap-1">
+          <QuestionnaireCountdownBadge deadlineAt={deadlineAt} timeoutMs={timeoutMs} compact />
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}

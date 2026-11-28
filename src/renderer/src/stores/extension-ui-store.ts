@@ -6,10 +6,18 @@ import type { AskQuestionPayload } from '@renderer/features/extension-ui/questio
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
 
 export type ExtensionUIPending =
-  | { id: string; method: 'ask_user_question'; questions: AskQuestionPayload[]; sessionFile?: string }
-  | { id: string; method: 'select'; title: string; options: string[]; sessionFile?: string }
-  | { id: string; method: 'confirm'; title: string; message: string; sessionFile?: string }
-  | { id: string; method: 'input'; title: string; placeholder?: string; sessionFile?: string }
+  | {
+      id: string
+      method: 'ask_user_question'
+      questions: AskQuestionPayload[]
+      timeoutMs?: number
+      deadlineAt?: number
+      sessionFile?: string
+    }
+  | { id: string; method: 'select'; title: string; options: string[]; timeoutMs?: number; deadlineAt?: number; sessionFile?: string }
+  | { id: string; method: 'confirm'; title: string; message: string; timeoutMs?: number; deadlineAt?: number; sessionFile?: string }
+  | { id: string; method: 'input'; title: string; placeholder?: string; timeoutMs?: number; deadlineAt?: number; sessionFile?: string }
+  | { id: string; method: 'editor'; title: string; prefill?: string; sessionFile?: string }
   | { id: string; method: 'image_review'; payload: ImageReviewPayload; sessionFile?: string }
 
 export type ExtensionUISuspended = {

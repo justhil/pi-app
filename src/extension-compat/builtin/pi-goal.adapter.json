@@ -1,7 +1,8 @@
 {
+  "$schema": "pi-desktop-adapter/v1",
   "id": "pi-goal",
   "displayName": "Goal",
-  "description": "持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令",
+  "description": "持久自主目标循环：goal_complete / goal_blocked / goal_wait 工具卡片、底栏状态胶囊与 ~/.pi/agent/pi-goal.json 配置",
   "match": {
     "names": [
       "@narumitw/pi-goal",
@@ -10,6 +11,9 @@
       "pi-goal"
     ],
     "tools": [
+      "goal_complete",
+      "goal_blocked",
+      "goal_wait",
       "get_goal",
       "create_goal",
       "update_goal"
@@ -22,40 +26,142 @@
     "source": "npm:@narumitw/pi-goal",
     "homepage": "https://www.npmjs.com/package/@narumitw/pi-goal"
   },
-  "tier": "partial",
+  "tier": "native",
   "toolCard": {
     "template": "default",
     "icon": "Target"
   },
-  "config": {
-    "note": "目标状态与预算按会话分支持久化；通过 /goal status、/goal pause、/goal resume、/goal clear、/goal budget <tokens> 或 /goal <目标描述> 管理。",
-    "i18n": {
-      "zh": {
-        "note": "目标状态与预算按会话分支持久化；通过 /goal status、/goal pause、/goal resume、/goal clear、/goal budget <tokens> 或 /goal <目标描述> 管理。"
-      },
-      "en": {
-        "note": "Goal state and token budgets are journaled per session branch; manage with /goal status, /goal pause, /goal resume, /goal clear, /goal budget <tokens>, or /goal <objective>."
-      },
-      "ru": {
-        "note": "Состояние целей и бюджеты токенов сохраняются по веткам сессии; управление через /goal status, /goal pause, /goal resume, /goal clear, /goal budget <tokens> или /goal <описание цели>."
-      }
+  "statusBar": {
+    "protocol": "status-pill-v1",
+    "statusKeys": [
+      "goal"
+    ],
+    "icon": "Target",
+    "title": "Goal",
+    "clickAction": {
+      "type": "slash",
+      "command": "/goal status"
     }
   },
   "slash": {
     "/goal": "notify"
   },
+  "config": {
+    "configFile": "~/.pi/agent/pi-goal.json",
+    "fileKeyMap": {
+      "retryUsageLimits": "retryUsageLimits",
+      "rpcEnabled": "rpc.enabled",
+      "automaticTurns": "continuationLimits.automaticTurns",
+      "noProgressTurns": "continuationLimits.noProgressTurns"
+    },
+    "sections": [
+      {
+        "title": "自主续跑与安全上限",
+        "fields": [
+          {
+            "key": "automaticTurns",
+            "type": "number",
+            "label": "最大自动续跑轮数",
+            "default": 25,
+            "description": "单次目标允许连续自动推进的最大模型响应次数"
+          },
+          {
+            "key": "noProgressTurns",
+            "type": "number",
+            "label": "无进展自动暂停轮数",
+            "default": 3,
+            "description": "连续多轮未调用工具或无实质进展时自动暂停保护"
+          },
+          {
+            "key": "retryUsageLimits",
+            "type": "boolean",
+            "label": "遇到额度限制自动等待重试",
+            "default": false
+          },
+          {
+            "key": "rpcEnabled",
+            "type": "boolean",
+            "label": "启用托管 RPC 生命周期广播",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "自主续跑与安全上限"
+          },
+          "en": {
+            "title": "Continuation & Safety Limits"
+          },
+          "ru": {
+            "title": "Автопродолжение и защитные лимиты"
+          }
+        }
+      }
+    ],
+    "note": "全局设置写入 ~/.pi/agent/pi-goal.json；目标状态与预算按会话分支记录。通过 /goal [--tokens 100k] <目标描述> 启动，或使用 /goal status、/goal pause、/goal resume、/goal edit、/goal clear 管理。",
+    "i18n": {
+      "zh": {
+        "note": "全局设置写入 ~/.pi/agent/pi-goal.json；目标状态与预算按会话分支记录。通过 /goal [--tokens 100k] <目标描述> 启动，或使用 /goal status、/goal pause、/goal resume、/goal edit、/goal clear 管理。"
+      },
+      "en": {
+        "note": "Global settings save to ~/.pi/agent/pi-goal.json; goal progress and budgets are journaled per session branch. Start with /goal [--tokens 100k] <objective>, or manage via /goal status, /goal pause, /goal resume, /goal edit, and /goal clear."
+      },
+      "ru": {
+        "note": "Глобальные настройки сохраняются в ~/.pi/agent/pi-goal.json; состояние цели записывается в ветку сессии. Запуск: /goal [--tokens 100k] <цель>, управление: /goal status, /goal pause, /goal resume, /goal edit, /goal clear."
+      }
+    }
+  },
   "i18n": {
     "zh": {
       "displayName": "Goal",
-      "description": "持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令"
+      "description": "持久自主目标循环：goal_complete / goal_blocked / goal_wait 工具卡片、底栏状态胶囊与 ~/.pi/agent/pi-goal.json 配置",
+      "statusBar": {
+        "title": "自主目标"
+      },
+      "fieldLabels": {
+        "automaticTurns": "最大自动续跑轮数",
+        "noProgressTurns": "无进展自动暂停轮数",
+        "retryUsageLimits": "遇到额度限制自动等待重试",
+        "rpcEnabled": "启用托管 RPC 生命周期广播"
+      },
+      "fieldDescriptions": {
+        "automaticTurns": "单次目标允许连续自动推进的最大模型响应次数",
+        "noProgressTurns": "连续多轮未调用工具或无实质进展时自动暂停保护"
+      }
     },
     "en": {
       "displayName": "Goal",
-      "description": "Persistent autonomous goals: get_goal / create_goal / update_goal tool cards and /goal command"
+      "description": "Persistent autonomous goals: goal_complete / goal_blocked / goal_wait tool cards, status bar pill, and ~/.pi/agent/pi-goal.json settings",
+      "statusBar": {
+        "title": "Goal"
+      },
+      "fieldLabels": {
+        "automaticTurns": "Max automatic turns",
+        "noProgressTurns": "Pause after no-progress turns",
+        "retryUsageLimits": "Auto-retry on usage limits",
+        "rpcEnabled": "Managed run RPC publication"
+      },
+      "fieldDescriptions": {
+        "automaticTurns": "Maximum automatic model responses before pausing for review",
+        "noProgressTurns": "Pause automatically after consecutive tool-free/no-progress turns"
+      }
     },
     "ru": {
       "displayName": "Goal",
-      "description": "Постоянные автономные цели: карточки инструментов get_goal / create_goal / update_goal и команда /goal"
+      "description": "Постоянные автономные цели: карточки goal_complete / goal_blocked / goal_wait, индикатор статуса и настройки ~/.pi/agent/pi-goal.json",
+      "statusBar": {
+        "title": "Цель"
+      },
+      "fieldLabels": {
+        "automaticTurns": "Макс. автоматических ходов",
+        "noProgressTurns": "Пауза после ходов без прогресса",
+        "retryUsageLimits": "Автоповтор при лимитах квоты",
+        "rpcEnabled": "Публикация управляемого RPC"
+      },
+      "fieldDescriptions": {
+        "automaticTurns": "Максимальное число автоматических ответов модели до паузы",
+        "noProgressTurns": "Автоматическая пауза при отсутствии прогресса несколько ходов подряд"
+      }
     }
   }
 }

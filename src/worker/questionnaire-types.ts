@@ -2,6 +2,8 @@ export type ExtensionUIQuestion = {
   question: string
   header?: string
   multiSelect?: boolean
+  recommended?: string
+  recommendedBecause?: string
   options: Array<{
     label: string
     description?: string

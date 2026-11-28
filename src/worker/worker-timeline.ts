@@ -166,6 +166,11 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
           timestamp: ts,
         })
       }
+    } else if (pm.role === 'custom' && (pm as { display?: boolean }).display === true) {
+      const text = extractText(pm).trim()
+      if (text) {
+        items.push({ id: nextHistId(), type: 'assistant-message', text, timestamp: ts })
+      }
     } else if (pm.role === 'compactionSummary' || pm.role === 'branchSummary') {
       const text = extractText(pm)
       items.push({ id: nextHistId(), type: 'compaction', text, timestamp: ts })
@@ -211,10 +216,37 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       })
       continue
     }
+    if (e.type === 'custom_message' && (e as { display?: boolean }).display === true) {
+      const text = extractText(e as unknown as PiSessionMessage).trim()
+      if (text) {
+        items.push({
+          id: nextHistId(),
+          type: 'assistant-message',
+          text,
+          timestamp: ts,
+          sessionEntryId: sid,
+        })
+      }
+      continue
+    }
     if (e.type !== 'message' || !e.message) continue
 
     const m = e.message
     const content = m.content || []
+
+    if (m.role === 'custom' && (m as { display?: boolean }).display === true) {
+      const text = extractText(m).trim()
+      if (text) {
+        items.push({
+          id: nextHistId(),
+          type: 'assistant-message',
+          text,
+          timestamp: ts,
+          sessionEntryId: sid,
+        })
+      }
+      continue
+    }
 
     if (m.role === 'user') {
       const text = normalizeUserMessageDisplayText(extractText(m))

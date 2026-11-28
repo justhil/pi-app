@@ -180,6 +180,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
         let executionSettled = false
         const runExecution = (async () => {
           let queuedDecremented = false
+          if (slashMatch) st.slashCommandActive = true
           try {
             if (needsSerialWait) {
               await waitForPreviousTurnSettled(promptSession)
@@ -247,6 +248,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
               })
             }
           } finally {
+            if (slashMatch) st.slashCommandActive = false
             executionSettled = true
             if (needsSerialWait && !queuedDecremented) {
               st.pendingFreshPrompts = Math.max(0, st.pendingFreshPrompts - 1)

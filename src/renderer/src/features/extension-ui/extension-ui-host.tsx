@@ -358,6 +358,70 @@ function InputDialog({
   )
 }
 
+function EditorDialog({
+  title,
+  prefill,
+  suspendable,
+  onSubmit,
+  onSuspend,
+  onCancel,
+}: {
+  title: string
+  prefill?: string
+  suspendable: boolean
+  onSubmit: (value: string) => void
+  onSuspend: () => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState(prefill ?? '')
+  return (
+    <ExtensionDialogShell
+      title={title}
+      maxWidthClass="max-w-lg"
+      suspendable={suspendable}
+      onSuspend={suspendable ? onSuspend : onCancel}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSubmit(value)
+        }}
+      >
+        <textarea
+          autoFocus
+          rows={5}
+          placeholder={t('extension:qOtherPlaceholder')}
+          className="mb-4 w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none transition-colors focus:border-primary/55"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault()
+              onSubmit(value)
+            }
+          }}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+            onClick={onCancel}
+          >
+            {t('extension:cancel')}
+          </button>
+          <button
+            type="submit"
+            className="rounded-lg bg-primary px-3.5 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            {t('extension:confirm')}
+          </button>
+        </div>
+      </form>
+    </ExtensionDialogShell>
+  )
+}
+
 export function ExtensionUIHost() {
   const pending = useExtensionUIStore((s) => s.activePending)
   const inlineHostMounted = useExtensionUIStore((s) => s.inlineHostMounted)
@@ -396,6 +460,8 @@ export function ExtensionUIHost() {
           key={pending.id}
           requestId={pending.id}
           questions={pending.questions}
+          deadlineAt={pending.deadlineAt}
+          timeoutMs={pending.timeoutMs}
           onSubmit={(result) => {
             const s = useExtensionUIStore.getState().suspended
             const tid = findToolContextForUi().timelineItemId || s?.timelineItemId
@@ -441,6 +507,18 @@ export function ExtensionUIHost() {
           message={pending.message}
           suspendable={canSuspend}
           onAnswer={(confirmed) => answer({ confirmed })}
+          onSuspend={suspendActiveDialog}
+          onCancel={() => cancelWorker(pending.id)}
+        />
+      )
+    case 'editor':
+      return (
+        <EditorDialog
+          key={pending.id}
+          title={pending.title}
+          prefill={pending.prefill}
+          suspendable={canSuspend}
+          onSubmit={(value) => answer({ value })}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}
         />

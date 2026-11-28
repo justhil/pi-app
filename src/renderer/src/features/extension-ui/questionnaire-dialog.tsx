@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, Copy, Eye, FileCode, X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { QuestionnaireFooter } from './questionnaire-footer'
+import { QuestionnaireCountdownBadge } from './questionnaire-countdown-badge'
 import {
   hasRichMarkdownSyntax,
   looksLikeAsciiDiagram,
@@ -32,6 +33,8 @@ export type AskQuestionPayload = {
   header?: string
   options: AskQuestionOption[]
   multiSelect?: boolean
+  recommended?: string
+  recommendedBecause?: string
 }
 
 export type AskQuestionAnswer = {
@@ -56,12 +59,16 @@ const isTextField = (target: EventTarget | null): boolean =>
 export function QuestionnaireDialog({
   requestId,
   questions,
+  deadlineAt,
+  timeoutMs,
   onSubmit,
   onSuspend,
   onCancel,
 }: {
   requestId: string
   questions: AskQuestionPayload[]
+  deadlineAt?: number
+  timeoutMs?: number
   onSubmit: (result: QuestionnaireResult) => void
   onSuspend: () => void
   onCancel: () => void
@@ -301,15 +308,25 @@ export function QuestionnaireDialog({
                   </button>
                 )
               })}
-              <span className="ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-muted-foreground">
-                {tab + 1} / {questions.length}
+              <span className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-[11px] tabular-nums text-muted-foreground">
+                <QuestionnaireCountdownBadge deadlineAt={deadlineAt} timeoutMs={timeoutMs} />
+                <span>
+                  {tab + 1} / {questions.length}
+                </span>
               </span>
             </nav>
           )}
-          {!many && q.header && (
-            <span className="mb-1.5 inline-block rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-              {q.header}
-            </span>
+          {!many && (q.header || deadlineAt) && (
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              {q.header ? (
+                <span className="inline-block rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {q.header}
+                </span>
+              ) : (
+                <span />
+              )}
+              <QuestionnaireCountdownBadge deadlineAt={deadlineAt} timeoutMs={timeoutMs} />
+            </div>
           )}
           <div className="studio-thin-scroll max-h-[30vh] overflow-y-auto pr-1" data-independent-scroll>
             {questionHasRichLayout ? (

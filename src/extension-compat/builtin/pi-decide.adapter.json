@@ -1,0 +1,219 @@
+{
+  "$schema": "pi-desktop-adapter/v1",
+  "id": "pi-decide",
+  "displayName": "Decide (Autopilot)",
+  "description": "结构化决策问卷与超时自动作答：支持推荐标记、实时倒计时与 ~/.pi/agent/pi-decide.json 配置",
+  "match": {
+    "names": [
+      "pi-decide"
+    ],
+    "commands": [
+      "/decide"
+    ]
+  },
+  "install": {
+    "source": "npm:pi-decide",
+    "homepage": "https://www.npmjs.com/package/pi-decide"
+  },
+  "tier": "native",
+  "toolCard": {
+    "template": "kv",
+    "icon": "MessageCircleQuestion"
+  },
+  "interact": {
+    "trigger": {
+      "tool": "ask_user_question"
+    },
+    "schema": "questions",
+    "fields": {
+      "questions": "$.questions"
+    }
+  },
+  "slash": {
+    "/decide": "execute"
+  },
+  "config": {
+    "configFile": "~/.pi/agent/pi-decide.json",
+    "fileKeyMap": {
+      "enabled": "enabled",
+      "mode": "autopilot.mode",
+      "timeoutSeconds": "autopilot.timeoutSeconds",
+      "deadlineSeconds": "autopilot.deadlineSeconds",
+      "tailMessages": "judge.tailMessages",
+      "maxQuestions": "limits.maxQuestions",
+      "maxOptions": "limits.maxOptions",
+      "notify": "notify",
+      "debug": "debug"
+    },
+    "sections": [
+      {
+        "title": "自动作答策略",
+        "fields": [
+          {
+            "key": "enabled",
+            "type": "boolean",
+            "label": "启用 pi-decide",
+            "default": true
+          },
+          {
+            "key": "mode",
+            "type": "select",
+            "label": "默认模式",
+            "default": "auto",
+            "options": [
+              "off",
+              "auto",
+              "on"
+            ],
+            "description": "off：人工优先但受兜底时限保护；auto：等待超时后自动作答；on：始终自动作答不弹窗"
+          },
+          {
+            "key": "timeoutSeconds",
+            "type": "number",
+            "label": "auto 倒计时（秒）",
+            "default": 180,
+            "description": "mode 为 auto 时问卷等待人工回答的秒数，超时后由 Judge 模型接管"
+          },
+          {
+            "key": "deadlineSeconds",
+            "type": "number",
+            "label": "off 兜底时限（秒）",
+            "default": 300,
+            "description": "mode 为 off 时的安全网超时秒数；设为 0 表示无限等待"
+          },
+          {
+            "key": "notify",
+            "type": "boolean",
+            "label": "自动作答完成通知",
+            "default": true
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "自动作答策略"
+          },
+          "en": {
+            "title": "Autopilot Policy"
+          },
+          "ru": {
+            "title": "Политика автоответа"
+          }
+        }
+      },
+      {
+        "title": "上下文与上限",
+        "fields": [
+          {
+            "key": "tailMessages",
+            "type": "number",
+            "label": "Judge 参考历史消息数",
+            "default": 10
+          },
+          {
+            "key": "maxQuestions",
+            "type": "number",
+            "label": "单次最大题目数",
+            "default": 8
+          },
+          {
+            "key": "maxOptions",
+            "type": "number",
+            "label": "每题最大选项数",
+            "default": 8
+          },
+          {
+            "key": "debug",
+            "type": "boolean",
+            "label": "输出调试日志",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "上下文与上限"
+          },
+          "en": {
+            "title": "Judge Context & Limits"
+          },
+          "ru": {
+            "title": "Контекст судьи и лимиты"
+          }
+        }
+      }
+    ],
+    "note": "配置读写 ~/.pi/agent/pi-decide.json（保留 judge.model 等嵌套字段）。会话内可执行 /decide status、/decide auto 60、/decide on、/decide hold、/decide reset 临时覆盖当前会话策略。",
+    "i18n": {
+      "zh": {
+        "note": "配置读写 ~/.pi/agent/pi-decide.json（保留 judge.model 等嵌套字段）。会话内可执行 /decide status、/decide auto 60、/decide on、/decide hold、/decide reset 临时覆盖当前会话策略。"
+      },
+      "en": {
+        "note": "Reads/writes ~/.pi/agent/pi-decide.json (preserving nested fields such as judge.model). Use /decide status, /decide auto 60, /decide on, /decide hold, or /decide reset for per-session overrides."
+      },
+      "ru": {
+        "note": "Читает и записывает ~/.pi/agent/pi-decide.json (сохраняя вложенные поля, включая judge.model). Команды /decide status, /decide auto 60, /decide on, /decide hold и /decide reset меняют политику текущей сессии."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Decide (Autopilot)",
+      "description": "结构化决策问卷与超时自动作答：支持推荐标记、实时倒计时与 ~/.pi/agent/pi-decide.json 配置",
+      "fieldLabels": {
+        "enabled": "启用 pi-decide",
+        "mode": "默认模式",
+        "timeoutSeconds": "auto 倒计时（秒）",
+        "deadlineSeconds": "off 兜底时限（秒）",
+        "notify": "自动作答完成通知",
+        "tailMessages": "Judge 参考历史消息数",
+        "maxQuestions": "单次最大题目数",
+        "maxOptions": "每题最大选项数",
+        "debug": "输出调试日志"
+      },
+      "fieldDescriptions": {
+        "mode": "off：人工优先但受兜底时限保护；auto：等待超时后自动作答；on：始终自动作答不弹窗",
+        "timeoutSeconds": "mode 为 auto 时问卷等待人工回答的秒数，超时后由 Judge 模型接管",
+        "deadlineSeconds": "mode 为 off 时的安全网超时秒数；设为 0 表示无限等待"
+      }
+    },
+    "en": {
+      "displayName": "Decide (Autopilot)",
+      "description": "Structured decision questionnaires with live countdown and autopilot fallback (~/.pi/agent/pi-decide.json)",
+      "fieldLabels": {
+        "enabled": "Enable pi-decide",
+        "mode": "Default mode",
+        "timeoutSeconds": "Auto countdown (seconds)",
+        "deadlineSeconds": "Off safety deadline (seconds)",
+        "notify": "Notify on autopilot answer",
+        "tailMessages": "Judge tail messages",
+        "maxQuestions": "Max questions per call",
+        "maxOptions": "Max options per question",
+        "debug": "Debug logging"
+      },
+      "fieldDescriptions": {
+        "mode": "off: ask human with safety deadline; auto: ask then self-answer on timeout; on: always self-answer",
+        "timeoutSeconds": "Seconds to wait in auto mode before the judge answers",
+        "deadlineSeconds": "Safety-net timeout in off mode (0 waits indefinitely)"
+      }
+    },
+    "ru": {
+      "displayName": "Decide (Autopilot)",
+      "description": "Структурированные опросники с таймером обратного отсчёта и автоответом (~/.pi/agent/pi-decide.json)",
+      "fieldLabels": {
+        "enabled": "Включить pi-decide",
+        "mode": "Режим по умолчанию",
+        "timeoutSeconds": "Таймер auto (секунды)",
+        "deadlineSeconds": "Защитный лимит off (секунды)",
+        "notify": "Уведомлять при автоответе",
+        "tailMessages": "Сообщений истории для судьи",
+        "maxQuestions": "Макс. вопросов за вызов",
+        "maxOptions": "Макс. вариантов на вопрос",
+        "debug": "Отладочный лог"
+      },
+      "fieldDescriptions": {
+        "mode": "off: спрашивать человека с защитным таймером; auto: автоответ по истечении времени; on: всегда отвечать автоматически",
+        "timeoutSeconds": "Секунд ожидания в режиме auto до автоответа судьи",
+        "deadlineSeconds": "Защитный таймаут в режиме off (0 — ждать бесконечно)"
+      }
+    }
+  }
+}

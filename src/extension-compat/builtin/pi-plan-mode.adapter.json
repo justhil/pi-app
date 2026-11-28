@@ -1,0 +1,180 @@
+{
+  "$schema": "pi-desktop-adapter/v1",
+  "id": "pi-plan-mode",
+  "displayName": "Plan Mode",
+  "description": "只读架构规划模式：plan_mode_question 原生问卷、plan_mode_complete 方案交付、底栏状态胶囊与 ~/.pi/agent/pi-plan-mode.json 配置",
+  "match": {
+    "names": [
+      "@narumitw/pi-plan-mode",
+      "pi-plan-mode"
+    ],
+    "tools": [
+      "plan_mode_question",
+      "plan_mode_complete"
+    ],
+    "commands": [
+      "/plan"
+    ]
+  },
+  "install": {
+    "source": "npm:@narumitw/pi-plan-mode",
+    "homepage": "https://www.npmjs.com/package/@narumitw/pi-plan-mode"
+  },
+  "tier": "native",
+  "toolCard": {
+    "template": "kv",
+    "icon": "Layers"
+  },
+  "interact": {
+    "trigger": {
+      "tool": "plan_mode_question"
+    },
+    "schema": "questions",
+    "fields": {
+      "questions": "$.questions"
+    }
+  },
+  "statusBar": {
+    "protocol": "status-pill-v1",
+    "statusKeys": [
+      "plan-mode"
+    ],
+    "icon": "Layers",
+    "title": "Plan Mode",
+    "clickAction": {
+      "type": "slash",
+      "command": "/plan"
+    }
+  },
+  "slash": {
+    "/plan": "execute"
+  },
+  "config": {
+    "configFile": "~/.pi/agent/pi-plan-mode.json",
+    "fileKeyMap": {
+      "thinkingLevel": "thinkingLevel",
+      "implementationPlanRetention": "implementationPlanRetention",
+      "defaultImplementationThinkingLevel": "defaultImplementationThinkingLevel",
+      "defaultPlanExportPath": "defaultPlanExportPath"
+    },
+    "sections": [
+      {
+        "title": "规划与实施默认项",
+        "fields": [
+          {
+            "key": "thinkingLevel",
+            "type": "select",
+            "label": "规划阶段思考等级",
+            "default": "inherit",
+            "options": [
+              "inherit",
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "key": "implementationPlanRetention",
+            "type": "select",
+            "label": "实施阶段计划保留策略",
+            "default": "clear-after-first-run",
+            "options": [
+              "clear-on-start",
+              "clear-after-first-run",
+              "keep"
+            ]
+          },
+          {
+            "key": "defaultImplementationThinkingLevel",
+            "type": "select",
+            "label": "实施阶段默认思考等级",
+            "default": "high",
+            "options": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "key": "defaultPlanExportPath",
+            "type": "text",
+            "label": "默认导出 Markdown 路径",
+            "default": "PLAN.md"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "规划与实施默认项"
+          },
+          "en": {
+            "title": "Planning & Implementation Defaults"
+          },
+          "ru": {
+            "title": "Параметры планирования и реализации"
+          }
+        }
+      }
+    ],
+    "note": "设置保存到 ~/.pi/agent/pi-plan-mode.json。通过 /plan <需求> 或 /plan start 进入只读规划模式，也可点击底部状态栏胶囊或输入 /plan 打开操作菜单（查看、就地实施、保存、导出或退出）。",
+    "i18n": {
+      "zh": {
+        "note": "设置保存到 ~/.pi/agent/pi-plan-mode.json。通过 /plan <需求> 或 /plan start 进入只读规划模式，也可点击底部状态栏胶囊或输入 /plan 打开操作菜单（查看、就地实施、保存、导出或退出）。"
+      },
+      "en": {
+        "note": "Saves to ~/.pi/agent/pi-plan-mode.json. Start with /plan <prompt> or /plan start; click the status bar pill or send /plan to open the action menu (show, implement here, save, export, or exit)."
+      },
+      "ru": {
+        "note": "Сохраняется в ~/.pi/agent/pi-plan-mode.json. Запускайте через /plan <запрос> или /plan start; нажмите индикатор в строке состояния или отправьте /plan для открытия меню действий."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Plan Mode",
+      "description": "只读架构规划模式：plan_mode_question 原生问卷、plan_mode_complete 方案交付、底栏状态胶囊与 ~/.pi/agent/pi-plan-mode.json 配置",
+      "statusBar": {
+        "title": "规划模式"
+      },
+      "fieldLabels": {
+        "thinkingLevel": "规划阶段思考等级",
+        "implementationPlanRetention": "实施阶段计划保留策略",
+        "defaultImplementationThinkingLevel": "实施阶段默认思考等级",
+        "defaultPlanExportPath": "默认导出 Markdown 路径"
+      }
+    },
+    "en": {
+      "displayName": "Plan Mode",
+      "description": "Read-only planning workflow: native plan_mode_question dialog, plan_mode_complete delivery, status bar pill, and ~/.pi/agent/pi-plan-mode.json settings",
+      "statusBar": {
+        "title": "Plan Mode"
+      },
+      "fieldLabels": {
+        "thinkingLevel": "Planning thinking level",
+        "implementationPlanRetention": "Implementation plan retention",
+        "defaultImplementationThinkingLevel": "Implementation thinking level",
+        "defaultPlanExportPath": "Default export Markdown path"
+      }
+    },
+    "ru": {
+      "displayName": "Plan Mode",
+      "description": "Режим планирования только для чтения: диалог plan_mode_question, завершение plan_mode_complete, индикатор статуса и настройки ~/.pi/agent/pi-plan-mode.json",
+      "statusBar": {
+        "title": "Режим плана"
+      },
+      "fieldLabels": {
+        "thinkingLevel": "Уровень рассуждений при планировании",
+        "implementationPlanRetention": "Удержание плана при реализации",
+        "defaultImplementationThinkingLevel": "Уровень рассуждений при реализации",
+        "defaultPlanExportPath": "Путь экспорта Markdown по умолчанию"
+      }
+    }
+  }
+}
