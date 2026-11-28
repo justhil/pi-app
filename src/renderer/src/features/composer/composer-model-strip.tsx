@@ -39,7 +39,7 @@ function ComposerModelStripImpl({
         onClick={onModelClick}
         aria-haspopup="dialog"
         aria-expanded={!!modelPickerOpen}
-        title={modelLabel === t('composer:selectModel') ? t('composer:selectModelHint') : t('composer:modelLabel', { name: model ?? modelLabel })}
+        aria-label={modelLabel === t('composer:selectModel') ? t('composer:selectModelHint') : t('composer:modelLabel', { name: model ?? modelLabel })}
         className={cn(chip, 'min-w-[3.5rem] max-w-[min(180px,34vw)]', modelPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
       >
         <span className="truncate">{modelLabel}</span>
@@ -52,7 +52,7 @@ function ComposerModelStripImpl({
         onClick={onThinkingClick}
         aria-haspopup="dialog"
         aria-expanded={!!thinkingPickerOpen}
-        title={t('composer:thinkingChip', { level: thinkLabel })}
+        aria-label={t('composer:thinkingChip', { level: thinkLabel })}
         className={cn(chip, 'shrink-0', thinkingPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
       >
         <span className="max-w-[88px] truncate">

@@ -14,7 +14,7 @@ import { cn } from '@renderer/lib/utils'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, Folder, FolderOpen, PencilLine, Plus, Search, X } from '@renderer/components/icons'
+import { ChevronRight, Folder, FolderOpen, Plug, Plus, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
@@ -66,9 +66,13 @@ function writeSectionOpen(open: boolean): void {
 export function ProjectSidebar({
   onOpenProject,
   openProjectLabel,
+  activeMainPage = 'chat',
+  onSelectMainPage,
 }: {
   onOpenProject: () => void
   openProjectLabel: string
+  activeMainPage?: 'chat' | 'plugins'
+  onSelectMainPage?: (page: 'chat' | 'plugins') => void
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -77,6 +81,8 @@ export function ProjectSidebar({
   const recentProjects = useUIStore((s) => s.recentProjects)
   const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const timelineEmpty = useUIStore((s) => s.timelineItems.length === 0)
+  const historyLoading = useUIStore((s) => s.historyLoading)
   const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const pinnedSessionMeta = useUIStore((s) => s.pinnedSessionMeta)
   const sessionAttention = useUIStore((s) => s.sessionAttention)
@@ -450,6 +456,7 @@ export function ProjectSidebar({
   }
 
   const handleNewSandboxDialog = () => {
+    onSelectMainPage?.('chat')
     enterBlankSession('ephemeral-sandbox')
     void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
   }
@@ -477,6 +484,7 @@ export function ProjectSidebar({
 
   const handleNewSessionInProject = async (workspacePath: string) => {
     if (!workspacePath || isSandboxPath(workspacePath)) return
+    onSelectMainPage?.('chat')
     try {
       if (!workspacePathsEqual(workspacePath, currentWorkspace)) {
         await activateWorkspace(workspacePath, { preferHome: true })
@@ -729,6 +737,8 @@ export function ProjectSidebar({
   // Every hook must run before the collapsed early return: the sidebar stays mounted while collapsed.
   const showBrand = useUIStore((s) => s.uiCustomization.shellSidebarShowBrand)
   const showNewChat = useUIStore((s) => s.uiCustomization.shellSidebarShowNewChat)
+  const isPluginsActive = activeMainPage === 'plugins'
+  const isNewChatActive = !isPluginsActive && !historySessionFile && timelineEmpty && !historyLoading
 
   if (collapsed) {
     return (
@@ -736,10 +746,26 @@ export function ProjectSidebar({
         <button
           type="button"
           onClick={() => void handleNewSandboxDialog()}
-          title={t('sidebar.tempChat')}
-          className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg"
+          title={t('common:nav.new')}
+          aria-current={isNewChatActive ? 'page' : undefined}
+          className={cn(
+            'chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg',
+            isNewChatActive && 'bg-foreground/[0.08] text-foreground',
+          )}
         >
           <Plus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectMainPage?.(isPluginsActive ? 'chat' : 'plugins')}
+          title={t('common:nav.plugins')}
+          aria-current={isPluginsActive ? 'page' : undefined}
+          className={cn(
+            'chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg',
+            isPluginsActive && 'bg-foreground/[0.08] text-foreground',
+          )}
+        >
+          <Plug className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -754,14 +780,6 @@ export function ProjectSidebar({
   }
 
   const handleQuickNewThread = () => {
-    if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      void handleNewSessionInProject(currentWorkspace)
-      return
-    }
-    if (diskPaths[0]) {
-      void handleNewSessionInProject(diskPaths[0])
-      return
-    }
     void handleNewSandboxDialog()
   }
 
@@ -868,19 +886,42 @@ export function ProjectSidebar({
           </div>
         ) : null}
 
-        {/* Primary quiet action row matching Codex "新聊天" */}
+        {/* Primary top navigation matching Claude Code ("+ 新建" & "插件") */}
         {showNewChat ? (
-          <div className="flex items-center gap-1 px-3">
+          <div className="space-y-0.5 px-3">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                data-pi-slot="sidebar-new-chat"
+                aria-current={isNewChatActive ? 'page' : undefined}
+                onClick={handleQuickNewThread}
+                className={cn(
+                  'nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors',
+                  isNewChatActive
+                    ? 'nav-row-active font-medium text-foreground'
+                    : 'text-foreground/90 hover:text-foreground',
+                )}
+              >
+                <Plus className="h-[16px] w-[16px] shrink-0 text-foreground-secondary/85" strokeWidth={1.7} />
+                <span className="truncate">{t('common:nav.new')}</span>
+              </button>
+              {!showBrand ? renderSearchTrigger() : null}
+            </div>
             <button
               type="button"
-              data-pi-slot="sidebar-new-chat"
-              onClick={handleQuickNewThread}
-              className="nav-row flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/90 transition-colors hover:text-foreground"
+              data-pi-slot="sidebar-plugins"
+              aria-current={isPluginsActive ? 'page' : undefined}
+              onClick={() => onSelectMainPage?.('plugins')}
+              className={cn(
+                'nav-row flex h-[34px] w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors',
+                isPluginsActive
+                  ? 'nav-row-active font-medium text-foreground'
+                  : 'text-foreground/90 hover:text-foreground',
+              )}
             >
-              <PencilLine className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/80" strokeWidth={1.6} />
-              <span className="truncate">{t('common:sidebar.newChat')}</span>
+              <Plug className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/85" strokeWidth={1.65} />
+              <span className="truncate">{t('common:nav.plugins')}</span>
             </button>
-            {!showBrand ? renderSearchTrigger() : null}
           </div>
         ) : null}
 
@@ -925,6 +966,7 @@ export function ProjectSidebar({
                     !ephemeralSandboxDraft &&
                     sessionFilesEqual(historySessionFile, entry.sessionFile)
                   const openPinned = async () => {
+                    onSelectMainPage?.('chat')
                     if (entry.sandboxBox) {
                       await openSandboxDialog(entry.sandboxBox)
                       return
@@ -1147,21 +1189,16 @@ export function ProjectSidebar({
           </div>
           <SidebarAnimatedCollapse open={searchActive || sectionOpen}>
             <div className="space-y-0.5">
-              {ephemeralSandboxDraft && (
-                <div className="nav-row nav-row-active relative flex h-[34px] items-center gap-2 rounded-lg px-2">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-                    {t('sidebar.newChat')}
-                  </span>
-                </div>
-              )}
-              {sortedVisibleSandboxes.length === 0 && !ephemeralSandboxDraft ? null : (
+              {sortedVisibleSandboxes.length === 0 ? null : (
                 sortedVisibleSandboxes.map((box) => (
                   <SandboxDialogRow
                     key={box.path}
                     box={box}
-                    active={box.path === currentWorkspace && !ephemeralSandboxDraft}
-                    onOpen={() => void openSandboxDialog(box)}
+                    active={!isPluginsActive && box.path === currentWorkspace && !ephemeralSandboxDraft}
+                    onOpen={() => {
+                      onSelectMainPage?.('chat')
+                      void openSandboxDialog(box)
+                    }}
                     onContextMenu={(e) => sandboxMenu.open(e, box)}
                   />
                 ))

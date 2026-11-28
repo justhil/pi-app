@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Cpu, RefreshCw, ArrowUp, Terminal } from '@renderer/components/icons'
+import { Cpu, RefreshCw, ArrowUp, Terminal } from '@renderer/components/icons'
 import { openTerminalTab } from '@renderer/features/terminal/terminal-drawer'
 import { terminalActions, useTerminalStore } from '@renderer/features/terminal/terminal-store'
 import {
@@ -13,7 +13,7 @@ import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
 import { useVisibleInterval } from '@renderer/hooks/use-visible-interval'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
-import { countAttention, listAttentionSessions, type SessionAttention } from '@renderer/lib/session-attention'
+import { countAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-session-lists'
@@ -44,8 +44,7 @@ function sameDesktopStatus(previous: DesktopStatus | null, next: DesktopStatus):
     })
   )
 }
-type Popover = 'workers' | 'board' | 'bg-tasks' | null
-const GROUPS: SessionAttention[] = ['needs-you', 'working', 'done']
+type Popover = 'workers' | 'bg-tasks' | null
 
 export function StatusBar() {
   const terminalOpen = useTerminalStore((s) => s.open)
@@ -69,7 +68,6 @@ export function StatusBar() {
   const [popover, setPopover] = useState<Popover>(null)
   const [confirmStop, setConfirmStop] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
-  const boardAnchor = useRef<HTMLButtonElement>(null)
   const workersAnchor = useRef<HTMLButtonElement>(null)
   const bgTasksAnchor = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => {
@@ -167,9 +165,6 @@ export function StatusBar() {
     }
   }
 
-  const label = (kind: SessionAttention) => kind === 'needs-you'
-    ? t('common:attention.needsYou')
-    : kind === 'working' ? t('common:app.status.running') : t('common:attention.done')
   // Whole app (every Electron process); falls back to the main process if metrics are missing.
   const rss = status?.app?.total || status?.rss || 0
   const fmt = (bytes: number) => {
@@ -177,10 +172,8 @@ export function StatusBar() {
     return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: gib ? 1 : 0 }).format(bytes / 1024 ** (gib ? 3 : 2))} ${gib ? 'GB' : 'MB'}`
   }
   const memory = rss ? fmt(rss) : '—'
-  const runFailed = useUIStore((s) => s.runState.status === 'failed')
   const ratio = status?.total ? rss / status.total : 0
   const level = ratio >= 0.8 ? 'critical' : ratio >= 0.6 ? 'warning' : 'normal'
-  const live = counts.working + counts.needsYou + counts.done
 
   if (!statusBarVisible) return null
 
@@ -188,18 +181,6 @@ export function StatusBar() {
     <footer data-pi-slot="shell-status-bar" className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
       <ComposerContextStrip placement="statusbar" />
 
-      <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
-        {live === 0 ? (runFailed
-          ? <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-destructive" />{t('common:statusBar.failed')}</span>
-          : <span className="flex items-center gap-2"><span className="status-ready-dot" />{t('common:app.status.ready')}</span>) : (
-          <>
-            {counts.needsYou > 0 && <span className="flex items-center gap-1.5"><SessionAttentionDot attention="needs-you" />{t('common:statusBar.needsYou', { count: counts.needsYou })}</span>}
-            {counts.working > 0 && <span className="flex items-center gap-1.5"><SessionAttentionDot attention="working" />{t('common:statusBar.running', { count: counts.working })}</span>}
-            {counts.done > 0 && <span className="flex items-center gap-1.5"><SessionAttentionDot attention="done" />{t('common:statusBar.done', { count: counts.done })}</span>}
-          </>
-        )}
-        <ChevronDown className="h-3 w-3 shrink-0 rotate-180 opacity-60" />
-      </button>
       <div className="ml-auto flex shrink-0 items-center">
         <StatusBarAdapterSlots
           activeSessionFile={activeSessionFile}
@@ -210,7 +191,7 @@ export function StatusBar() {
         <button type="button" className="workbench-status-trigger" aria-pressed={terminalOpen} title={t('common:terminal.toggle')} aria-label={t('common:terminal.toggle')} onClick={() => (!terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle())}>
           <Terminal className="h-3 w-3" />{terminalTabs > 0 ? <span className="tabular-nums">{terminalTabs}</span> : null}
         </button>
-        <button ref={workersAnchor} type="button" className="workbench-status-trigger tabular-nums" data-level={level} aria-haspopup="dialog" aria-expanded={popover === 'workers'} aria-label={t('common:statusBar.resources')} title={t('common:statusBar.memoryHint')} onClick={() => { setPopover((v) => v === 'workers' ? null : 'workers'); void refresh() }}>
+        <button ref={workersAnchor} type="button" className="workbench-status-trigger tabular-nums" data-level={level} aria-haspopup="dialog" aria-expanded={popover === 'workers'} aria-label={t('common:statusBar.resources')} onClick={() => { setPopover((v) => v === 'workers' ? null : 'workers'); void refresh() }}>
           <Cpu className="h-3 w-3" /><span>{memory}</span>
         </button>
         {openUpdate && <button type="button" className="workbench-status-trigger" title={t('common:statusBar.update')} aria-label={t('common:statusBar.update')} onClick={openUpdate}><ArrowUp className="h-3 w-3" /></button>}
@@ -219,19 +200,11 @@ export function StatusBar() {
       {popover && (
         <ShellPopover
           title={
-            popover === 'board'
-              ? t('common:board.title')
-              : popover === 'bg-tasks'
-                ? t('common:bgTasks.title')
-                : t('common:statusBar.resources')
+            popover === 'bg-tasks'
+              ? t('common:bgTasks.title')
+              : t('common:statusBar.resources')
           }
-          anchorRef={
-            popover === 'board'
-              ? boardAnchor
-              : popover === 'bg-tasks'
-                ? bgTasksAnchor
-                : workersAnchor
-          }
+          anchorRef={popover === 'bg-tasks' ? bgTasksAnchor : workersAnchor}
           onClose={close}
         >
           {actionError && <p role="alert" className="workbench-error">{actionError}</p>}
@@ -246,25 +219,6 @@ export function StatusBar() {
               onOpenSession={(file) => void openSession(file)}
               onClose={close}
             />
-          ) : popover === 'board' ? (
-            live === 0 ? <div className="workbench-empty"><SessionAttentionDot attention="done" /><p>{t('common:board.empty')}</p><span>{t('common:board.emptyHint')}</span></div> : (
-              GROUPS.map((kind) => {
-                const files = listAttentionSessions(attention, kind)
-                if (!files.length) return null
-                return <section key={kind} className="workbench-group" aria-label={label(kind)}>
-                  <h3 className="workbench-group-heading"><SessionAttentionDot attention={kind} />{label(kind)}<span>{files.length}</span></h3>
-                  {files.map((file) => {
-                    const match = findSession(file)
-                    const worker = status?.workers.find((row) => sessionFilesEqual(row.sessionFile, file))
-                    const workspace = match?.workspaceId || worker?.cwd || (match ? currentWorkspace : null)
-                    return <button key={file} type="button" className="workbench-list-row" onClick={() => void openSession(file)}>
-                      <span className="workbench-row-title">{match?.title || t('common:split.untitled')}</span>
-                      <span className="workbench-row-detail">{workspace?.split(/[\\/]/).pop()}{match?.firstMessage ? ` · ${match.firstMessage}` : ''}</span>
-                    </button>
-                  })}
-                </section>
-              })
-            )
           ) : (
             <>
               <div className="workbench-resource-summary"><div><span className="workbench-row-detail">{t('common:statusBar.memory')}</span><strong className="block text-xl font-medium tabular-nums">{memory}</strong></div><button type="button" className="workbench-icon" aria-label={t('common:refresh')} onClick={() => void refresh()}><RefreshCw className="h-4 w-4" /></button></div>

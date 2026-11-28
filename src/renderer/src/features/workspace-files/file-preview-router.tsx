@@ -10,7 +10,42 @@ import { joinWorkspacePath } from './path-utils'
 import { resolveFilePreviewMode } from './file-preview-mode'
 import { PREVIEW_MD_MAX_CHARS, PREVIEW_MD_MAX_LINES, PREVIEW_READ_MAX_BYTES } from './file-preview-limits'
 import { FileSourcePreview } from './file-source-preview'
+import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
 import { toast } from 'sonner'
+
+function ZoomableFileImage({ src, alt }: { src: string; alt: string }) {
+  const [scale, setScale] = useState(1)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setScale(1) }, [src])
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+      setScale((prev) => Math.min(6, Math.max(0.25, Math.round(prev * factor * 1000) / 1000)))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [src])
+  return (
+    <div ref={boxRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[var(--bg-1)] p-2">
+      <img
+        src={src}
+        alt={alt}
+        onClick={() => setLightboxOpen(true)}
+        onDoubleClick={() => setScale(1)}
+        style={{ transform: `scale(${scale})` }}
+        className="max-h-full max-w-full cursor-zoom-in object-contain transition-transform duration-100 select-none"
+        draggable={false}
+      />
+      <ImageLightbox src={lightboxOpen ? src : null} alt={alt} onClose={() => setLightboxOpen(false)} />
+    </div>
+  )
+}
 
 type ReadTextFn = (
   p: string,
@@ -145,7 +180,7 @@ export function FilePreviewRouter({
     const key = loadError === 'too_large' ? 'tooLarge' : loadError === 'binary' ? 'binary' : loadError === 'not_found' ? 'deleted' : 'error'
     return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(`preview.${key}`)}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
   }
-  if (mode === 'image') return wrap(imageUrl ? <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--bg-1)] p-0"><img src={imageUrl} alt={relativePath} className="max-h-full max-w-full object-contain" /></div> : null)
+  if (mode === 'image') return wrap(imageUrl ? <ZoomableFileImage src={imageUrl} alt={relativePath} /> : null)
   if (mode === 'pdf' || mode === 'binary' || mode === 'sheet') return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(mode === 'pdf' ? 'preview.pdf' : 'preview.binary')}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
   if (content == null) return wrap(null)
   if (sourceLocation) return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} sourceLocation={sourceLocation} />)

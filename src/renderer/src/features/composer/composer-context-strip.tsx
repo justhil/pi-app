@@ -21,6 +21,7 @@ import { useDraftWorktreeStore } from '@renderer/stores/draft-worktree-store'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
 import { cn } from '@renderer/lib/utils'
+import { ComposerProjectPicker } from './composer-project-picker'
 
 interface BranchRef {
   name: string
@@ -156,10 +157,16 @@ export function ComposerContextStrip({
     }
   }, [open])
 
-  if (!visibleHere || !currentWorkspace || ephemeralSandboxDraft || !isRepo) return null
+  if (!activeForPlacement) return null
 
-  const currentTree = worktrees.find((w) => workspacePathsEqual(w.path, currentWorkspace))
-  const siblingWorktrees = worktrees.filter((w) => !workspacePathsEqual(w.path, currentWorkspace))
+  const hasGitContext = Boolean(currentWorkspace && !ephemeralSandboxDraft && isRepo)
+
+  const currentTree = hasGitContext
+    ? worktrees.find((w) => workspacePathsEqual(w.path, currentWorkspace))
+    : undefined
+  const siblingWorktrees = hasGitContext
+    ? worktrees.filter((w) => !workspacePathsEqual(w.path, currentWorkspace))
+    : []
   const selectedExisting = siblingWorktrees.find((w) =>
     workspacePathsEqual(w.path, existingWorktreePath),
   )
@@ -173,34 +180,38 @@ export function ComposerContextStrip({
   const isPill = !isStatusBar && contextStyle === 'pill'
   const isTray = !isStatusBar && contextStyle === 'tray'
 
-  const fullEnvLabel = isBlankDraft
-    ? mode === 'new-worktree'
-      ? branchName.trim()
-        ? `Worktree · ${branchName.trim()}`
-        : t('composer:worktree.newMode')
-      : mode === 'existing-worktree' && selectedExisting
-        ? `Worktree · ${selectedExisting.branch || selectedExisting.path.split(/[\\/]/).pop()}`
-        : t('composer:worktree.localMode')
-    : isSecondaryWorktree
-      ? `Worktree · ${currentTree?.branch || currentWorkspace.split(/[\\/]/).pop()}`
-      : parallelCount > 0
-        ? `${t('composer:worktree.localMode')} · ${parallelCount} worktree`
-        : t('composer:worktree.localMode')
+  const fullEnvLabel = !currentWorkspace
+    ? t('composer:worktree.localMode')
+    : isBlankDraft
+      ? mode === 'new-worktree'
+        ? branchName.trim()
+          ? `Worktree · ${branchName.trim()}`
+          : t('composer:worktree.newMode')
+        : mode === 'existing-worktree' && selectedExisting
+          ? `Worktree · ${selectedExisting.branch || selectedExisting.path.split(/[\\/]/).pop()}`
+          : t('composer:worktree.localMode')
+      : isSecondaryWorktree
+        ? `Worktree · ${currentTree?.branch || currentWorkspace.split(/[\\/]/).pop()}`
+        : parallelCount > 0
+          ? `${t('composer:worktree.localMode')} · ${parallelCount} worktree`
+          : t('composer:worktree.localMode')
 
-  const compactEnvLabel = isBlankDraft
-    ? mode === 'new-worktree'
-      ? branchName.trim() || 'Worktree'
-      : mode === 'existing-worktree' && selectedExisting
-        ? selectedExisting.branch || selectedExisting.path.split(/[\\/]/).pop() || 'Worktree'
+  const compactEnvLabel = !currentWorkspace
+    ? t('composer:worktree.localMode')
+    : isBlankDraft
+      ? mode === 'new-worktree'
+        ? branchName.trim() || 'Worktree'
+        : mode === 'existing-worktree' && selectedExisting
+          ? selectedExisting.branch || selectedExisting.path.split(/[\\/]/).pop() || 'Worktree'
+          : t('composer:worktree.localMode')
+      : isSecondaryWorktree
+        ? currentTree?.branch || currentWorkspace.split(/[\\/]/).pop() || 'Worktree'
         : t('composer:worktree.localMode')
-    : isSecondaryWorktree
-      ? currentTree?.branch || currentWorkspace.split(/[\\/]/).pop() || 'Worktree'
-      : t('composer:worktree.localMode')
 
   const envLabel = worktreeMode === 'compact' ? compactEnvLabel : fullEnvLabel
   const popAlignRight = uiCustom.composerContextSwapped && !isStatusBar
 
-  const worktreeNode = showWorktree ? (
+  const worktreeNode = hasGitContext && showWorktree ? (
     <div ref={popRef} className="relative flex min-w-0 items-center">
       <button
         type="button"
@@ -469,7 +480,7 @@ export function ComposerContextStrip({
     </div>
   ) : null
 
-  const branchNode = showBranch ? (
+  const branchNode = hasGitContext && showBranch ? (
     <div className="flex shrink-0 items-center gap-1">
       {branchPr && branchMode === 'full' && (
         <button
@@ -517,6 +528,17 @@ export function ComposerContextStrip({
     </div>
   ) : null
 
+  const leftControls = (
+    <div className="flex min-w-0 items-center gap-1">
+      <ComposerProjectPicker
+        isStatusBar={isStatusBar}
+        isPill={isPill}
+        popAlignRight={popAlignRight}
+      />
+      {worktreeNode}
+    </div>
+  )
+
   if (isStatusBar) {
     return (
       <div
@@ -526,11 +548,11 @@ export function ComposerContextStrip({
         {uiCustom.composerContextSwapped ? (
           <>
             {branchNode}
-            {worktreeNode}
+            {leftControls}
           </>
         ) : (
           <>
-            {worktreeNode}
+            {leftControls}
             {branchNode}
           </>
         )}
@@ -552,11 +574,11 @@ export function ComposerContextStrip({
       {uiCustom.composerContextSwapped ? (
         <>
           {branchNode ?? <span />}
-          {worktreeNode}
+          {leftControls}
         </>
       ) : (
         <>
-          {worktreeNode ?? <span />}
+          {leftControls}
           {branchNode}
         </>
       )}

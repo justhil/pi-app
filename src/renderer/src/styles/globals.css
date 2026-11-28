@@ -1305,17 +1305,18 @@
     position: fixed;
     z-index: 9999;
     max-width: min(380px, 70vw);
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border-base);
-    background: var(--bg-base);
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-    font-size: 11px;
+    padding: 6px 11px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border-base) 80%, transparent);
+    background: color-mix(in srgb, var(--popover) 95%, transparent);
+    backdrop-filter: blur(12px);
+    color: var(--popover-foreground);
+    font-size: 12px;
+    font-weight: 500;
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-all;
-    box-shadow: 0 4px 16px color-mix(in srgb, var(--aou-10) 12%, transparent);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.28);
     pointer-events: none;
     opacity: 0;
     transform: translateY(4px);
@@ -1666,6 +1667,9 @@
   .dark .sidebar-section-hit:hover,
   .dark .chrome-icon-btn:hover {
     background-color: var(--bg-hover);
+  }
+  .dark .nav-row .sidebar-project-hit:hover {
+    background-color: transparent;
   }
   .dark .rich-attachment-chip {
     background: var(--bg-2);
@@ -2531,9 +2535,9 @@
 
 /* ── Project Home: hero → dock 过渡动画 ── */
 
-/* Composer hero 居中位置：上移到主列中心偏上（按主列高度，底部终端打开时不再顶到标题上） */
+/* Composer hero 居中位置：给上方 Token 活动概览留出舒适空间 */
 .composer-dock-hero {
-  transform: translateY(calc(var(--main-col-h, 100vh) * -0.5 + 50% - 2rem));
+  transform: translateY(calc(var(--main-col-h, 100vh) * -0.28 + 50%));
 }
 
 /* hero 态输入框更宽、更柔和 */

@@ -96,14 +96,6 @@ export function ProjectSessionTree({
   const liveChildren = useUIStore((st) =>
     isCurrentProject ? selectActiveSubagentSessionChildren(st.timelineItems, catalogReady ? 1 : 0) : NO_CHILDREN,
   )
-  // "+" on this project (or its home view): show the new conversation where it will live.
-  const pendingNew = useUIStore(
-    (st) =>
-      isCurrentProject &&
-      !st.ephemeralSandboxDraft &&
-      (st.pendingNewSessionPlaceholder ||
-        (!st.currentSessionId && !st.historySessionFile && !st.historyLoading && st.timelineItems.length === 0)),
-  )
 
   const tree = useMemo(() => {
     const groups: SessionChildGroup[] = []
@@ -470,16 +462,6 @@ export function ProjectSessionTree({
         <p>{t('common:sidebar.sessionReadFailed')}</p>
         <button type="button" className="workbench-button mt-1" disabled={loading} onClick={onRetry}>{t('common:retry')}</button>
       </div>}
-      {pendingNew && !searchQuery.trim() ? (
-        <div className="mb-0.5">
-          <div className="nav-row nav-row-active sidebar-session-row sidebar-pending-row flex h-[34px] items-center gap-2 rounded-lg pl-8 pr-2" aria-current="page">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-              {t('common:sidebar.newSessionDraft')}
-            </span>
-          </div>
-        </div>
-      ) : null}
       <div
         className="relative"
         onMouseEnter={() => setListHover(true)}
@@ -496,7 +478,7 @@ export function ProjectSessionTree({
           {loading ? (
             <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/60">{t('common:loading')}</p>
           ) : visibleRoots.length === 0 ? (
-            !error && !pendingNew && projectSessions.length === 0 && (
+            !error && projectSessions.length === 0 && (
               <p className="pl-8 pr-2 py-1.5 text-[12px] text-foreground-secondary/50">{t('common:sidebar.noSessions')}</p>
             )
           ) : shownRoots.map((node) => renderSession(node))}
@@ -571,29 +553,22 @@ export function ProjectDiskRow({
       >
         <button
           type="button"
-          onClick={onToggleOpen}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-foreground-secondary/75 transition-colors hover:text-foreground"
-          aria-label={t('common:sidebar.toggleProject', { name })}
+          onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
+          className="sidebar-project-hit flex h-full min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
+          title={shortBranch ? `${path} (${shortBranch})` : path}
           aria-expanded={open}
+          aria-current={active ? 'location' : undefined}
         >
           {worktree ? (
             <ChevronRight
-              className="chevron-expand h-3 w-3 shrink-0"
+              className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/75"
               data-open={open ? 'true' : 'false'}
             />
           ) : open ? (
-            <FolderOpen className="h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+            <FolderOpen className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/75" strokeWidth={1.6} />
           ) : (
-            <Folder className="h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+            <Folder className="h-[15px] w-[15px] shrink-0 text-foreground-secondary/75" strokeWidth={1.6} />
           )}
-        </button>
-        <button
-          type="button"
-          onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
-          className="sidebar-project-hit flex min-w-0 flex-1 items-center py-1 text-left"
-          title={shortBranch ? `${path} (${shortBranch})` : path}
-          aria-current={active ? 'location' : undefined}
-        >
           <span
             className={cn(
               'min-w-0 truncate text-[13px] leading-5',

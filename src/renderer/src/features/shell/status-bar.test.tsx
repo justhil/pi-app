@@ -1,13 +1,15 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatusBar } from './status-bar'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useBackgroundTasksStore } from '@renderer/stores/background-tasks-store'
 import { __resetRefreshWorkspaceSessionListsForTests } from '@renderer/lib/refresh-workspace-session-lists'
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), activate: vi.fn(), switchSession: vi.fn() }))
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: mocks.invoke },
   onAppUpdateAvailable: () => () => {},
+  onGitWorkspaceChanged: () => () => {},
   onAppEvent: () => () => {},
 }))
 vi.mock('@renderer/lib/activate-workspace', () => ({ activateWorkspace: mocks.activate, switchSessionInPlace: mocks.switchSession }))
@@ -23,143 +25,30 @@ beforeEach(() => {
   vi.clearAllMocks()
   __resetRefreshWorkspaceSessionListsForTests()
   useUIStore.setState({ currentWorkspace: '/project-a', sessions: [foreground], sessionAttention: { [file]: 'working' } })
+  useBackgroundTasksStore.setState({ tasksBySession: {}, activeAdapterBySession: {}, loading: false })
   mocks.invoke.mockImplementation(async (channel) => {
-    if (channel === 'desktop.status') return { rss: 0, total: 0, workers: [{ sessionFile: file, cwd: workspace, running: true }] }
+    if (channel === 'desktop.status') return { rss: 256 * 1024 ** 2, total: 16 * 1024 ** 3, workers: [{ sessionFile: file, cwd: workspace, running: true }] }
     if (channel === 'session.list') return { sessions: [session] }
     if (channel === 'session.prepare') return { sessionId: session.sessionId, sessionFile: file, workspaceId: workspace }
-    return {}
+    return { ok: true }
   })
 })
 afterEach(cleanup)
 
-async function openBoard() {
-  render(<StatusBar />)
-  fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-  return screen.findByRole('button', { name: /Background task/ })
-}
+describe('StatusBar without duplicate bottom session board', () => {
+  it('omits the duplicate session-activity trigger while still managing sleep block', async () => {
+    render(<StatusBar />)
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('desktop.setSleepBlock', { on: true }))
+    expect(screen.queryByRole('button', { name: 'Session activity' })).toBeNull()
+  })
 
-describe('session activity', () => {
-  it('loads background project titles only while open and keeps the foreground list', async () => {
+  it('loads background project titles lazily when opening the resources popover', async () => {
     render(<StatusBar />)
     await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('desktop.status', {}))
     expect(mocks.invoke.mock.calls.some(([channel]) => channel === 'session.list')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    expect(await screen.findByRole('button', { name: /Background task/ })).toBeEnabled()
-    expect(screen.queryByText('background.jsonl')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Runtime & resources' }))
+    expect(await screen.findByText('Background task')).toBeInTheDocument()
     expect(useUIStore.getState().sessions).toEqual([foreground])
-  })
-
-  it('opens a background session using its actual project and file identity', async () => {
-    fireEvent.click(await openBoard())
-    await waitFor(() => expect(mocks.activate).toHaveBeenCalledWith(workspace, { sessionId: 'background', sessionFile: file }))
-    expect(mocks.invoke).toHaveBeenCalledWith('session.prepare', { sessionFile: file, bind: false })
-    expect(mocks.switchSession).not.toHaveBeenCalled()
-  })
-
-  it.each(['working', 'needs-you', 'done'] as const)('recovers a %s title from the session file after its worker disappears', async (attention) => {
-    const invoke = mocks.invoke.getMockImplementation()!
-    mocks.invoke.mockImplementation(async (channel, args) => channel === 'desktop.status'
-      ? { rss: 0, total: 0, workers: [] } : invoke(channel, args))
-    useUIStore.setState({ sessionAttention: { [file.replace(/\\/g, '/')]: attention } })
-
-    render(<StatusBar />)
-    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('desktop.status', {}))
-    expect(mocks.invoke.mock.calls.some(([channel]) => channel === 'session.prepare' || channel === 'session.list')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    const row = await screen.findByRole('button', { name: /Background task/ })
-    expect(mocks.invoke).toHaveBeenCalledWith('session.prepare', { sessionFile: file.replace(/\\/g, '/'), bind: false })
-    expect(mocks.invoke).toHaveBeenCalledWith('session.list', { workspaceId: workspace, refresh: true })
-    expect(useUIStore.getState().sessions).toEqual([foreground])
-    expect(mocks.activate).not.toHaveBeenCalled()
-    expect(mocks.switchSession).not.toHaveBeenCalled()
-
-    fireEvent.click(row)
-    await waitFor(() => expect(mocks.activate).toHaveBeenCalledWith(workspace, { sessionId: session.sessionId, sessionFile: file }))
-  })
-
-  it('loads a title when a session without a worker enters the open activity list', async () => {
-    const invoke = mocks.invoke.getMockImplementation()!
-    mocks.invoke.mockImplementation(async (channel, args) => channel === 'desktop.status'
-      ? { rss: 0, total: 0, workers: [] } : invoke(channel, args))
-    useUIStore.setState({ sessionAttention: { [foreground.sessionFile]: 'working' } })
-
-    render(<StatusBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    await screen.findByRole('button', { name: /Foreground task/ })
-    act(() => useUIStore.setState({ sessionAttention: { [foreground.sessionFile]: 'working', [file]: 'done' } }))
-    expect(await screen.findByRole('button', { name: /Background task/ })).toBeEnabled()
-    expect(useUIStore.getState().sessions).toEqual([foreground])
-  })
-
-  it('loads a shared project once for sessions without workers', async () => {
-    const siblingFile = file.replace('background.jsonl', 'sibling.jsonl')
-    const sibling = { ...session, sessionId: 'sibling', sessionFile: siblingFile, title: 'Sibling task' }
-    useUIStore.setState({ sessionAttention: { [file]: 'done', [siblingFile]: 'done' } })
-    mocks.invoke.mockImplementation(async (channel, args) => {
-      if (channel === 'desktop.status') return { rss: 0, total: 0, workers: [] }
-      if (channel === 'session.prepare') return { sessionId: args.sessionFile.includes('sibling') ? sibling.sessionId : session.sessionId, workspaceId: workspace }
-      if (channel === 'session.list') return { sessions: [session, sibling] }
-      return {}
-    })
-
-    render(<StatusBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    expect(await screen.findByRole('button', { name: /Background task/ })).toBeEnabled()
-    expect(await screen.findByRole('button', { name: /Sibling task/ })).toBeEnabled()
-    expect(mocks.invoke.mock.calls.filter(([channel]) => channel === 'session.list')).toHaveLength(1)
-    expect(useUIStore.getState().sessions).toEqual([foreground])
-  })
-
-  it.each(['fails', 'stalls'])('still loads a live session title when another session lookup %s', async (outcome) => {
-    const missingFile = '/sessions/missing.jsonl'
-    const invoke = mocks.invoke.getMockImplementation()!
-    useUIStore.setState({ sessionAttention: { [file]: 'working', [missingFile]: 'done' } })
-    mocks.invoke.mockImplementation(async (channel, args) => {
-      if (channel === 'session.prepare' && args.sessionFile === missingFile) {
-        if (outcome === 'stalls') return new Promise(() => {})
-        throw new Error('read failed')
-      }
-      return invoke(channel, args)
-    })
-
-    render(<StatusBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    expect(await screen.findByRole('button', { name: /Background task/ })).toBeEnabled()
-    expect(mocks.invoke).toHaveBeenCalledWith('session.prepare', { sessionFile: missingFile, bind: false })
-    expect(screen.queryByRole('alert')).toBeNull()
-  })
-
-  it('opens an existing file even when it is absent from project lists and workers', async () => {
-    const invoke = mocks.invoke.getMockImplementation()!
-    mocks.invoke.mockImplementation(async (channel, args) => channel === 'session.list' ? { sessions: [] }
-      : channel === 'desktop.status' ? { rss: 0, total: 0, workers: [] } : invoke(channel, args))
-    render(<StatusBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Session activity' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Untitled session' }))
-    await waitFor(() => expect(mocks.activate).toHaveBeenCalledWith(workspace, { sessionId: 'background', sessionFile: file }))
-    expect(screen.queryByRole('alert')).toBeNull()
-  })
-
-  it('switches within the current project using normalized workspace paths', async () => {
-    useUIStore.setState({ currentWorkspace: workspace.replace(/\\/g, '/'), sessions: [session] })
-    fireEvent.click(await openBoard())
-    await waitFor(() => expect(mocks.switchSession).toHaveBeenCalledWith('background', file))
-    expect(mocks.activate).not.toHaveBeenCalled()
-  })
-
-  it('reports deletion only when the file cannot be prepared', async () => {
-    const row = await openBoard()
-    mocks.invoke.mockResolvedValue({ sessionId: null })
-    fireEvent.click(row)
-    expect(await screen.findByRole('alert')).toHaveTextContent('This session was deleted or is unavailable')
-    expect(mocks.activate).not.toHaveBeenCalled()
-  })
-
-  it('reports a lookup failure separately from deletion', async () => {
-    const row = await openBoard()
-    mocks.invoke.mockRejectedValue(new Error('read failed'))
-    await act(async () => fireEvent.click(row))
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not open that session')
-    expect(mocks.activate).not.toHaveBeenCalled()
   })
 })
