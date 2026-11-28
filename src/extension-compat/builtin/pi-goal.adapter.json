@@ -94,6 +94,9 @@
           },
           "ru": {
             "title": "Автопродолжение и защитные лимиты"
+          },
+          "ja": {
+            "title": "自動続行と実行制限"
           }
         }
       }
@@ -108,6 +111,9 @@
       },
       "ru": {
         "note": "Глобальные настройки сохраняются в ~/.pi/agent/pi-goal.json; состояние цели записывается в ветку сессии. Запуск: /goal [--tokens 100k] <цель>, управление: /goal status, /goal pause, /goal resume, /goal edit, /goal clear."
+      },
+      "ja": {
+        "note": "グローバル設定は ~/.pi/agent/pi-goal.json に保存され、ゴールの進捗と予算はセッションのブランチ単位で記録されます。/goal [--tokens 100k] <objective> で開始し、/goal status、/goal pause、/goal resume、/goal edit、/goal clear で管理します。"
       }
     }
   },
@@ -161,6 +167,23 @@
       "fieldDescriptions": {
         "automaticTurns": "Максимальное число автоматических ответов модели до паузы",
         "noProgressTurns": "Автоматическая пауза при отсутствии прогресса несколько ходов подряд"
+      }
+    },
+    "ja": {
+      "displayName": "Goal",
+      "description": "セッションに保存される自律実行のゴール。goal_complete／goal_blocked／goal_wait のツールカード、ステータスバーの表示、~/.pi/agent/pi-goal.json の設定に対応します。",
+      "statusBar": {
+        "title": "ゴール"
+      },
+      "fieldLabels": {
+        "automaticTurns": "自動ターン数の上限",
+        "noProgressTurns": "進捗なしで一時停止するまでのターン数",
+        "retryUsageLimits": "利用上限に達した場合に自動で再試行",
+        "rpcEnabled": "管理対象の実行を RPC で公開"
+      },
+      "fieldDescriptions": {
+        "automaticTurns": "確認のために一時停止するまで、モデルが自動で応答する回数の上限です",
+        "noProgressTurns": "ツール呼び出しや進捗のないターンが続くと自動で一時停止します"
       }
     }
   }

@@ -79,6 +79,9 @@
       },
       "ru": {
         "note": "Память и сжатие управляются самим расширением (magic-context.jsonc); текущее состояние можно проверить командой /ctx-status."
+      },
+      "ja": {
+        "note": "メモリとコンテキストの圧縮は拡張機能が管理します（magic-context.jsonc）。/ctx-status で現在の状態を確認できます。"
       }
     }
   },
@@ -103,6 +106,10 @@
     "ru": {
       "displayName": "Magic Context",
       "description": "Межсессионная память и управление контекстом: карточки инструментов ctx_*, список todowrite над композером"
+    },
+    "ja": {
+      "displayName": "Magic Context",
+      "description": "セッションをまたいだメモリとコンテキスト管理。ctx_* ツールのカードや、入力欄の上に todowrite のタスク一覧を表示します。"
     }
   }
 }

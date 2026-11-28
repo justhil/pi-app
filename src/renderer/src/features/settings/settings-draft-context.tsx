@@ -157,7 +157,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return registerSettingsDirtySlice({
       id: 'app',
-      label: 'App & Right Panels',
+      label: t('settings:general.appAndRightPanels'),
       isDirty: () => draftDirtyRef.current,
       commit: async () => {
         const d = draftRef.current
@@ -171,7 +171,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       },
       discard: () => discardDraftRef.current(),
     })
-  }, [i18n])
+  }, [i18n, t])
 
   const sliceDirty = anySettingsSliceDirty()
   const dirty = draftDirty || sliceDirty

@@ -26,6 +26,7 @@
     "usage": "用量"
   },
   "general": {
+    "appAndRightPanels": "应用与右侧面板",
     "title": "常规",
     "description": "启动、更新与提醒。",
     "startup": "启动",
@@ -107,6 +108,7 @@
     "langZh": "中文",
     "langEn": "English",
     "langRu": "Русский",
+    "langJa": "日本語",
     "recentProjects": "最近项目",
     "activeSessionsDrawer": "侧边栏活跃会话抽屉",
     "activeSessionsDrawerDesc": "在左侧栏底部展示运行中、未读及近 1 小时内运行过的会话。",

@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BUILTIN_ADAPTERS } from '@extension-compat/builtin-adapters'
+import { resolveAdapterText } from '@extension-compat/adapter-schema'
 import { parseAdapterDeclaration } from '@extension-compat/adapter-validation'
 import { QuestionnaireCountdownBadge } from '@renderer/features/extension-ui/questionnaire-countdown-badge'
 import { ComposerInlineQuestionnaire } from '@renderer/features/extension-ui/composer-inline-questionnaire'
@@ -35,6 +36,7 @@ describe('newly installed local plugin adapters & desktop UI primitives', () => 
       expect(found?.i18n?.zh).toBeDefined()
       expect(found?.i18n?.en).toBeDefined()
       expect(found?.i18n?.ru).toBeDefined()
+      expect(found?.i18n?.ja).toBeDefined()
     }
 
     const goal = BUILTIN_ADAPTERS.find((item) => item.id === 'pi-goal')!
@@ -44,6 +46,10 @@ describe('newly installed local plugin adapters & desktop UI primitives', () => 
     const plan = BUILTIN_ADAPTERS.find((item) => item.id === 'pi-plan-mode')!
     expect(plan.interact?.trigger.tool).toBe('plan_mode_question')
     expect(plan.statusBar?.statusKeys).toContain('plan-mode')
+    const localizedPlan = resolveAdapterText(plan, 'ja-JP')
+    expect(localizedPlan.sections[0]?.title).toBe('計画・実装の既定値')
+    expect(localizedPlan.sections[0]?.fields[0]?.label).toBe('計画時の思考レベル')
+    expect(localizedPlan.statusBar.title).toBe('プランモード')
 
     const quality = BUILTIN_ADAPTERS.find((item) => item.id === 'pi-quality')!
     const gateField = quality.config?.sections?.[0]?.fields?.find((f) => f.key === 'gate')

@@ -99,6 +99,9 @@
           },
           "ru": {
             "title": "API"
+          },
+          "ja": {
+            "title": "API"
           }
         }
       },
@@ -149,6 +152,9 @@
           },
           "ru": {
             "title": "Генерация"
+          },
+          "ja": {
+            "title": "画像生成"
           }
         }
       },
@@ -171,6 +177,9 @@
           },
           "ru": {
             "title": "Карточка в desktop"
+          },
+          "ja": {
+            "title": "デスクトップカード"
           }
         }
       }
@@ -202,6 +211,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/image-gen.json (общий с расширением). Встроенный предпросмотр — локальный переключатель desktop. Оставьте ключ пустым, чтобы сохранить текущий."
+      },
+      "ja": {
+        "note": "拡張機能と共用する ~/.pi/agent/image-gen.json に保存します。インラインプレビューはデスクトップ専用です。キー欄を空のままにすると保存済みのキーを維持します。"
       }
     }
   },
@@ -270,6 +282,27 @@
       },
       "actionLabels": {
         "test": "Проверить соединение"
+      }
+    },
+    "ja": {
+      "displayName": "Image Gen",
+      "description": "画像の生成と編集（~/.pi/agent/image-gen.json、接続テスト、モデル選択）",
+      "fieldLabels": {
+        "baseUrl": "API のベース URL",
+        "apiKey": "API キー",
+        "model": "モデル",
+        "size": "既定のサイズ",
+        "responseFormat": "レスポンス形式",
+        "outputDir": "出力先フォルダー",
+        "maxConcurrency": "同時リクエスト数の上限（1～8）",
+        "showInlinePreview": "タイムラインにインラインプレビューを表示"
+      },
+      "fieldDescriptions": {
+        "baseUrl": "OpenAI 互換の画像サービス（末尾に /v1 を付けない）",
+        "apiKey": "保存したキーを消去するには - を入力します"
+      },
+      "actionLabels": {
+        "test": "接続をテスト"
       }
     }
   }

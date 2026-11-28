@@ -43,7 +43,7 @@ export const COMPLETION_TITLE_MAX = 40
 export const COMPLETION_BODY_MAX = 140
 
 /** Languages the main-process notification copy is written in (mirrors the app language). */
-export type CompletionUiLanguage = 'zh' | 'en' | 'ru'
+export type CompletionUiLanguage = 'zh' | 'en' | 'ru' | 'ja'
 
 export type CompletionCopyInput = {
   language: CompletionUiLanguage
@@ -78,12 +78,18 @@ function ruPlural(n: number, one: string, few: string, many: string): string {
 function formatDuration(language: CompletionUiLanguage, durationMs?: number): string {
   if (durationMs == null || !Number.isFinite(durationMs) || durationMs < 0) return ''
   const sec = Math.max(0, Math.round(durationMs / 1000))
+  if (language === 'ja') return sec > 0 ? `${sec} 秒` : '1 秒未満'
   if (language === 'zh') return sec > 0 ? `${sec} 秒` : '不到 1 秒'
   if (language === 'ru') return sec > 0 ? `${sec} ${ruPlural(sec, 'секунду', 'секунды', 'секунд')}` : 'меньше секунды'
   return sec > 0 ? `${sec}s` : '<1s'
 }
 
 function outcomeLabel(language: CompletionUiLanguage, outcome: CompletionOutcome): string {
+  if (language === 'ja') {
+    if (outcome === 'failed') return '失敗'
+    if (outcome === 'cancelled') return 'キャンセル'
+    return '完了'
+  }
   if (language === 'zh') {
     if (outcome === 'failed') return '失败'
     if (outcome === 'cancelled') return '已取消'
@@ -99,36 +105,46 @@ function outcomeLabel(language: CompletionUiLanguage, outcome: CompletionOutcome
   return 'Done'
 }
 
+const notificationLabels = {
+  en: {
+    testTitle: 'Test notification', test: 'Test', title: 'Task finished',
+    body: 'Task finished. You can return to the session.',
+    back: 'Back to app', open: 'Open session', dismiss: 'Dismiss', mute: 'Mute 30 min',
+  },
+  zh: {
+    testTitle: '测试提醒', test: '测试', title: '任务已完成',
+    body: '任务完成，可以返回查看',
+    back: '返回应用', open: '返回会话', dismiss: '关闭', mute: '勿扰 30 分钟',
+  },
+  ru: {
+    testTitle: 'Тестовое уведомление', test: 'Тест', title: 'Задача завершена',
+    body: 'Задача завершена, можно вернуться в сессию.',
+    back: 'Вернуться в приложение', open: 'Открыть сессию', dismiss: 'Закрыть', mute: 'Не беспокоить 30 мин',
+  },
+  ja: {
+    testTitle: 'テスト通知', test: 'テスト', title: 'タスクが完了しました',
+    body: 'タスクが完了しました。セッションに戻って確認できます。',
+    back: 'アプリに戻る', open: 'セッションを開く', dismiss: '閉じる', mute: '30 分間通知を停止',
+  },
+} satisfies Record<CompletionUiLanguage, Record<string, string>>
+
 export function buildCompletionNotificationCopy(input: CompletionCopyInput): CompletionCopy {
-  const zh = input.language === 'zh'
-  const ru = input.language === 'ru'
+  const labels = notificationLabels[input.language]
   if (input.isTest) {
     return {
       projectLabel: 'pi Desktop',
-      title: ru ? 'Тестовое уведомление' : zh ? '测试提醒' : 'Test notification',
-      body: ru
-        ? 'Задача завершена, можно вернуться в сессию.'
-        : zh
-          ? '任务完成，可以返回查看'
-          : 'Task finished. You can return to the session.',
-      meta: ru ? 'Тест' : zh ? '测试' : 'Test',
-      openLabel: ru ? 'Вернуться в приложение' : zh ? '返回应用' : 'Back to app',
-      dismissLabel: ru ? 'Закрыть' : zh ? '关闭' : 'Dismiss',
-      muteLabel: ru ? 'Не беспокоить 30 мин' : zh ? '勿扰 30 分钟' : 'Mute 30 min',
+      title: labels.testTitle,
+      body: labels.body,
+      meta: labels.test,
+      openLabel: labels.back,
+      dismissLabel: labels.dismiss,
+      muteLabel: labels.mute,
     }
   }
 
-  const title =
-    sanitizeCompletionPreview(input.promptPreview, COMPLETION_TITLE_MAX) ||
-    (ru ? 'Задача завершена' : zh ? '任务已完成' : 'Task finished')
+  const title = sanitizeCompletionPreview(input.promptPreview, COMPLETION_TITLE_MAX) || labels.title
   const rawBody = input.previewMode === 'response' ? input.responsePreview : ''
-  const body =
-    sanitizeCompletionPreview(rawBody, COMPLETION_BODY_MAX) ||
-    (ru
-      ? 'Задача завершена, можно вернуться в сессию.'
-      : zh
-        ? '任务完成，可以返回查看'
-        : 'Task finished. You can return to the session.')
+  const body = sanitizeCompletionPreview(rawBody, COMPLETION_BODY_MAX) || labels.body
   const duration = formatDuration(input.language, input.durationMs)
   const meta = [outcomeLabel(input.language, input.outcome), duration].filter(Boolean).join(' · ')
 
@@ -137,9 +153,9 @@ export function buildCompletionNotificationCopy(input: CompletionCopyInput): Com
     title,
     body,
     meta,
-    openLabel: ru ? 'Открыть сессию' : zh ? '返回会话' : 'Open session',
-    dismissLabel: ru ? 'Закрыть' : zh ? '关闭' : 'Dismiss',
-    muteLabel: ru ? 'Не беспокоить 30 мин' : zh ? '勿扰 30 分钟' : 'Mute 30 min',
+    openLabel: labels.open,
+    dismissLabel: labels.dismiss,
+    muteLabel: labels.mute,
   }
 }
 

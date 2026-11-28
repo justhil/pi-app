@@ -47,6 +47,9 @@
           },
           "ru": {
             "title": "Панель desktop"
+          },
+          "ja": {
+            "title": "デスクトップパネル"
           }
         }
       }
@@ -60,6 +63,9 @@
       },
       "ru": {
         "note": "Данные задач Trellis управляются расширением и каталогом .trellis рабочей области; панель desktop только для чтения считывает task.py current и последние записи журнала."
+      },
+      "ja": {
+        "note": "Trellis のタスクデータは拡張機能とワークスペースの .trellis ディレクトリで管理されます。読み取り専用のデスクトップパネルでは task.py current の出力と最近の作業ログを表示します。"
       }
     }
   },
@@ -110,6 +116,18 @@
       "sidePanel": {
         "label": "Trellis",
         "description": "Задачи и этапы (только чтение)"
+      }
+    },
+    "ja": {
+      "displayName": "Trellis",
+      "description": "Trellis のサブエージェントの進捗とタスクの状態（読み取り専用のパネルとツールカード）",
+      "fieldLabels": {
+        "showRecentJournal": "最近の作業ログを表示",
+        "journalLimit": "作業ログの最大表示件数"
+      },
+      "sidePanel": {
+        "label": "Trellis",
+        "description": "タスクと進行段階（読み取り専用）"
       }
     }
   }

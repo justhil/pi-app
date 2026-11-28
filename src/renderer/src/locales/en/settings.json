@@ -26,6 +26,7 @@
     "usage": "Usage"
   },
   "general": {
+    "appAndRightPanels": "App & Right Panels",
     "title": "General",
     "description": "Startup, updates and notifications.",
     "startup": "Startup",
@@ -107,6 +108,7 @@
     "langZh": "中文",
     "langEn": "English",
     "langRu": "Русский",
+    "langJa": "日本語",
     "recentProjects": "Recent projects",
     "activeSessionsDrawer": "Sidebar active sessions drawer",
     "activeSessionsDrawerDesc": "Show running, unread, and last-hour sessions above Settings in the left sidebar.",

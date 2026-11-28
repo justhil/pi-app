@@ -87,6 +87,11 @@ export function formatHomeDuration(ms: number | null | undefined, lang: string):
     if (mins > 0) return secs > 0 ? `${mins} 分 ${secs} 秒` : `${mins} 分`
     return `${secs} 秒`
   }
+  if (lower.startsWith('ja')) {
+    if (hours > 0) return `${hours} 時間 ${mins} 分`
+    if (mins > 0) return secs > 0 ? `${mins} 分 ${secs} 秒` : `${mins} 分`
+    return `${secs} 秒`
+  }
   if (lower.startsWith('ru')) {
     if (hours > 0) return `${hours} ч ${mins} мин`
     if (mins > 0) return secs > 0 ? `${mins} мин ${secs} с` : `${mins} мин`

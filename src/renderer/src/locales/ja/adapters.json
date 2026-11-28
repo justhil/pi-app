@@ -1,0 +1,49 @@
+{
+  "title": "アダプター",
+  "panel": {
+    "openProject": "先にプロジェクトを開いてください",
+    "unavailable": "パネル定義を取得できません",
+    "refresh": "更新",
+    "empty": "データがまだありません",
+    "readFailed": "パネルのデータを読み込めません",
+    "errors": {
+      "outside_workspace": "パネルから読み込めるのは、現在のプロジェクト内のファイルだけです",
+      "not_found": "指定されたデータファイルはまだありません",
+      "too_large": "データファイルが 1 MB を超えています。サイズを小さくして再試行してください",
+      "invalid_json": "データファイルの JSON 形式が正しくありません",
+      "items_not_array": "指定されたリストのパスが配列を指していません"
+    }
+  },
+  "openConfig": "設定ファイルを開く",
+  "tier": {
+    "native": "完全対応",
+    "partial": "一部対応",
+    "headless": "実行のみ",
+    "none": "未対応"
+  },
+  "desktop": "デスクトップ",
+  "probe": "動作確認",
+  "version": "バージョン",
+  "tasks": {
+    "status": {
+      "in_progress": "進行中",
+      "planning": "計画中",
+      "review": "レビュー中",
+      "completed": "完了"
+    },
+    "noAdapterId": "adapterId が設定されていません（{{panelId}}）",
+    "openProjectFirst": "先にプロジェクトを開いてください",
+    "loadFailed": "パネルの状態を読み込めません",
+    "retry": "再試行",
+    "noLayout": "このプロジェクトにはタスク用のワークスペースレイアウトがありません",
+    "needsTrellis": "プロジェクトのルートに `.trellis/` が必要です（stateProvider: workspace-trellis）",
+    "activeCount": "進行中のタスク（{{count}} 件）",
+    "currentTask": "現在のタスク",
+    "subtaskCount": "サブタスク {{count}} 件",
+    "subtasks": "サブタスク",
+    "acceptance": "完了条件",
+    "empty": "進行中のタスクはありません",
+    "journals": "最近の作業記録",
+    "lines": "{{count}} 行"
+  }
+}

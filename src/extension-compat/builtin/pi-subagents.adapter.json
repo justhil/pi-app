@@ -108,6 +108,9 @@
           },
           "ru": {
             "title": "По умолчанию"
+          },
+          "ja": {
+            "title": "既定値"
           }
         }
       }
@@ -122,6 +125,9 @@
       },
       "ru": {
         "note": "Субагенты запускаются в расширении; desktop отслеживает дочерние сессии по runId / progress. Остальные параметры (forkContext, intercomBridge и др.) редактируйте напрямую в файле конфигурации."
+      },
+      "ja": {
+        "note": "拡張機能がサブエージェントを実行します。デスクトップは runId と進捗を追跡して子セッションを表示します。forkContext、intercomBridge などの設定はファイルを直接編集してください。"
       }
     }
   },
@@ -166,6 +172,20 @@
       },
       "fieldDescriptions": {
         "defaultSubagentContext": "fresh начинает с пустого контекста; fork переносит текущую сессию. Если не задано, используется значение по умолчанию каждого агента"
+      }
+    },
+    "ja": {
+      "displayName": "Subagents",
+      "description": "サブエージェントへの委任。ツールカードで子セッションを追跡し、~/.pi/agent/extensions/subagent/config.json で設定できます。",
+      "fieldLabels": {
+        "asyncByDefault": "既定でバックグラウンド実行",
+        "forceTopLevelAsync": "最上位の実行を強制的に非同期化",
+        "defaultSubagentContext": "サブエージェントのコンテキスト",
+        "maxSubagentDepth": "サブエージェントの最大階層数",
+        "worktree": "別のワークツリーで実行"
+      },
+      "fieldDescriptions": {
+        "defaultSubagentContext": "fresh は空の状態から開始し、fork は現在のセッションを引き継ぎます。未指定の場合は各エージェントの既定値を使います"
       }
     }
   }

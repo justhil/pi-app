@@ -10,7 +10,7 @@ const electronExecutable = require('electron') as string
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const mainEntry = path.join(root, 'out', 'main', 'index.js')
 
-const CHROMIUM_LANG = { en: 'en-US', zh: 'zh-CN', ru: 'ru-RU' } as const
+const CHROMIUM_LANG = { en: 'en-US', zh: 'zh-CN', ru: 'ru-RU', ja: 'ja-JP' } as const
 const tempDirs: string[] = []
 process.on('exit', () => {
   for (const dir of tempDirs) {
@@ -32,7 +32,7 @@ process.on('exit', () => {
  * deterministic on any machine.
  */
 export async function launchCleanApp(
-  opts: { language?: 'en' | 'zh' | 'ru'; env?: Record<string, string>; args?: string[]; config?: Record<string, unknown> } = {},
+  opts: { language?: keyof typeof CHROMIUM_LANG; env?: Record<string, string>; args?: string[]; config?: Record<string, unknown> } = {},
 ): Promise<ElectronApplication> {
   const language = opts.language ?? 'en'
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-locale-'))

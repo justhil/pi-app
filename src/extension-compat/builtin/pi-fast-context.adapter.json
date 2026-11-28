@@ -89,6 +89,9 @@
           },
           "ru": {
             "title": "API и индекс"
+          },
+          "ja": {
+            "title": "API とインデックス"
           }
         }
       },
@@ -135,6 +138,9 @@
           },
           "ru": {
             "title": "Поведение поиска"
+          },
+          "ja": {
+            "title": "検索の動作"
           }
         }
       },
@@ -167,6 +173,9 @@
           },
           "ru": {
             "title": "Режим карты репозитория"
+          },
+          "ja": {
+            "title": "リポジトリマップモード"
           }
         }
       },
@@ -225,6 +234,9 @@
           },
           "ru": {
             "title": "Bootstrap / Hotspot"
+          },
+          "ja": {
+            "title": "初期探索とホットスポット"
           }
         }
       }
@@ -239,6 +251,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/fast-context.json (общий с CLI/TUI расширения). Если apiKey пуст, расширение автоматически подхватывает WINDSURF_API_KEY."
+      },
+      "ja": {
+        "note": "拡張機能の CLI／TUI と共用する ~/.pi/agent/fast-context.json に保存します。apiKey が空欄の場合は WINDSURF_API_KEY を自動検出します。"
       }
     }
   },
@@ -327,6 +342,33 @@
         "apiKey": "Ключ сервиса эмбеддингов; оставьте пустым для автообнаружения через WINDSURF_API_KEY",
         "dbPath": "Оставьте пустым для пути по умолчанию ~/.pi/agent/fast-context.db",
         "excludePaths": "Например: node_modules,dist,.git"
+      }
+    },
+    "ja": {
+      "displayName": "Fast Context",
+      "description": "コードのセマンティック検索（~/.pi/agent/fast-context.json の設定と接続テスト）",
+      "fieldLabels": {
+        "apiKey": "API キー",
+        "dbPath": "インデックスデータベースのパス",
+        "treeDepth": "リポジトリツリーの深さ",
+        "maxTurns": "検索ターン数の上限",
+        "maxCommands": "1 ターンあたりの最大コマンド数",
+        "maxResults": "検索結果の上限",
+        "timeoutSecs": "タイムアウト（秒）",
+        "repoMapMode": "リポジトリマップモード",
+        "excludePaths": "除外パス（カンマ区切り）",
+        "bootstrapEnabled": "初期探索を有効にする",
+        "bootstrapTreeDepth": "初期探索のツリーの深さ",
+        "bootstrapMaxTurns": "初期探索の最大ターン数",
+        "bootstrapMaxCommands": "初期探索の最大コマンド数",
+        "hotspotTopK": "上位ホットスポット数",
+        "hotspotTreeDepth": "ホットスポットのツリーの深さ",
+        "hotspotMaxBytes": "ホットスポットの最大バイト数"
+      },
+      "fieldDescriptions": {
+        "apiKey": "埋め込みサービスのキー。空欄にすると WINDSURF_API_KEY から自動取得します",
+        "dbPath": "空欄にすると既定の ~/.pi/agent/fast-context.db を使います",
+        "excludePaths": "例：node_modules,dist,.git"
       }
     }
   }

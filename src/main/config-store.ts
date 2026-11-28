@@ -47,7 +47,7 @@ export interface StoreSchema {
   /** 右侧栏 Tab 顺序（panel id 列表） */
   rightPanelOrder: string[]
   /** 界面语言（设置保存后写入） */
-  language: 'zh' | 'en' | 'ru'
+  language: 'zh' | 'en' | 'ru' | 'ja'
   /** 启动时打开上次项目 */
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */

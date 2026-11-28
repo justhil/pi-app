@@ -1,0 +1,71 @@
+{
+  "empty": {
+    "noWorkspace": "プロジェクトを開くとファイルを参照できます"
+  },
+  "chrome": {
+    "noFile": "ファイルが選択されていません",
+    "collapseExplorer": "ファイルツリーを閉じる",
+    "expandExplorer": "ファイルツリーを開く",
+    "expandPreview": "チャット欄までプレビューを広げる",
+    "collapsePreview": "プレビューを折りたたむ"
+  },
+  "tabs": {
+    "close": "タブを閉じる"
+  },
+  "search": {
+    "placeholder": "ツリーを絞り込み…"
+  },
+  "tree": {
+    "folder": "フォルダー",
+    "loading": "読み込み中…",
+    "loadMore": "さらに {{count}} 件表示…",
+    "dirTruncated": "大きなフォルダーです（{{total}} 件中 {{shown}} 件を表示）",
+    "searchCapped": "一致する項目が多いため、{{total}} 件中 {{shown}} 件を表示しています",
+    "dotfiles": "隠しファイルを表示",
+    "git": {
+      "modified": "変更",
+      "added": "追加",
+      "deleted": "削除"
+    },
+    "collapseAll": "すべて折りたたむ"
+  },
+  "preview": {
+    "pickFile": "ツリーからファイルを選ぶとプレビューできます",
+    "loading": "プレビューを読み込み中…",
+    "tooLarge": "ファイルが大きすぎるためプレビューできません",
+    "binary": "この種類のファイルを既定のアプリで開く",
+    "pdf": "PDF を既定のビューアーで開く",
+    "openInSystem": "既定のアプリで開く",
+    "error": "ファイルを読み込めません",
+    "truncated": "一部のみ表示しています",
+    "previewLimit": "先頭の 8 MB を表示しています。続きを見るには既定のアプリで開いてください。",
+    "truncatedNoHighlight": "大きなファイルのため、強調表示なしのテキストで表示しています",
+    "expandAll": "すべて表示（{{count}} 行）",
+    "collapse": "折りたたむ",
+    "tryExpandRead": "続きを読み込む（最大 8 MB）",
+    "deleted": "ファイルが削除または移動されました"
+  },
+  "menu": {
+    "preview": "プレビュー",
+    "attach": "チャットに追加",
+    "copyPath": "パスをコピー",
+    "copyRel": "相対パスをコピー",
+    "newFile": "新しいファイル",
+    "newFolder": "新しいフォルダー",
+    "reveal": "フォルダーで表示",
+    "rename": "名前を変更",
+    "openInNewTab": "新しいタブで開く",
+    "searchInFolder": "このフォルダー内を検索"
+  },
+  "rename": {
+    "title": "名前を変更",
+    "confirm": "OK",
+    "cancel": "キャンセル"
+  },
+  "toast": {
+    "attached": "入力欄に添付しました",
+    "copied": "パスをコピーしました",
+    "renamed": "名前を変更しました",
+    "renameFailed": "名前を変更できませんでした"
+  }
+}

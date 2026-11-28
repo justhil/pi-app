@@ -119,6 +119,9 @@
           },
           "ru": {
             "title": "Параметры планирования и реализации"
+          },
+          "ja": {
+            "title": "計画・実装の既定値"
           }
         }
       }
@@ -133,6 +136,9 @@
       },
       "ru": {
         "note": "Сохраняется в ~/.pi/agent/pi-plan-mode.json. Запускайте через /plan <запрос> или /plan start; нажмите индикатор в строке состояния или отправьте /plan для открытия меню действий."
+      },
+      "ja": {
+        "note": "~/.pi/agent/pi-plan-mode.json に保存します。/plan <prompt> または /plan start で開始します。ステータスバーのバッジをクリックするか /plan を送ると操作メニューが開きます（表示、この場で実装、保存、エクスポート、終了）。"
       }
     }
   },
@@ -174,6 +180,19 @@
         "implementationPlanRetention": "Удержание плана при реализации",
         "defaultImplementationThinkingLevel": "Уровень рассуждений при реализации",
         "defaultPlanExportPath": "Путь экспорта Markdown по умолчанию"
+      }
+    },
+    "ja": {
+      "displayName": "Plan Mode",
+      "description": "読み取り専用の計画ワークフロー。plan_mode_question のダイアログ、plan_mode_complete による計画の提出、ステータスバー表示、~/.pi/agent/pi-plan-mode.json の設定に対応します。",
+      "statusBar": {
+        "title": "プランモード"
+      },
+      "fieldLabels": {
+        "thinkingLevel": "計画時の思考レベル",
+        "implementationPlanRetention": "実装時の計画の保持",
+        "defaultImplementationThinkingLevel": "実装時の思考レベル",
+        "defaultPlanExportPath": "Markdown の既定のエクスポート先"
       }
     }
   }

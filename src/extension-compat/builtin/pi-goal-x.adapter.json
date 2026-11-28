@@ -118,6 +118,9 @@
           },
           "ru": {
             "title": "Автономное выполнение"
+          },
+          "ja": {
+            "title": "自律実行"
           }
         }
       },
@@ -151,6 +154,9 @@
           },
           "ru": {
             "title": "Задачи"
+          },
+          "ja": {
+            "title": "タスク"
           }
         }
       },
@@ -180,6 +186,9 @@
           },
           "ru": {
             "title": "Без фокуса"
+          },
+          "ja": {
+            "title": "ゴール未選択時"
           }
         }
       },
@@ -227,6 +236,9 @@
           },
           "ru": {
             "title": "Аудитор завершения"
+          },
+          "ja": {
+            "title": "完了時の検証"
           }
         }
       }
@@ -241,6 +253,9 @@
       },
       "ru": {
         "note": "Глобальные настройки. Для проектных переопределений и горячих клавиш используйте /goal-settings в чате; выполните /goal-refresh в активной сессии, чтобы применить изменения."
+      },
+      "ja": {
+        "note": "グローバル設定です。チャットで /goal-settings を使うと、プロジェクト固有の設定やキー割り当てを変更できます。実行中のセッションに変更を反映するには /goal-refresh を実行してください。"
       }
     }
   },
@@ -321,6 +336,32 @@
         "hideUnfocusedPrompt": "Не добавлять напоминание [PI GOAL UNFOCUSED] к каждому запросу при наличии цели без фокуса",
         "provider": "Пусто — использовать модель текущей сессии",
         "model": "ID модели, например claude-opus-5-5"
+      }
+    },
+    "ja": {
+      "displayName": "Goal",
+      "description": "ゴールの計画と自律実行。入力欄の上にタスク一覧を表示します。設定は ~/.pi/agent/pi-goal-x-settings.json に保存されます。",
+      "fieldLabels": {
+        "maxAutonomousRuns": "自律実行回数の上限",
+        "showAutonomousRuns": "自律実行の回数を表示",
+        "strictExecutionContract": "実行条件を明示",
+        "disableTasks": "タスク管理を無効にする",
+        "subtaskDepth": "サブタスクの階層の深さ",
+        "disableContracts": "完了条件を無効にする",
+        "autoSelectSingleGoal": "未完了のゴールが 1 件なら自動で選択",
+        "hideUnfocusedPrompt": "ゴール未選択時のリマインダーを非表示",
+        "hideUnfocusedBanner": "ゴール未選択時のヒントを非表示",
+        "disabled": "完了時の検証を無効にする",
+        "provider": "検証用プロバイダー",
+        "model": "検証用モデル",
+        "thinkingLevel": "検証時の思考レベル"
+      },
+      "fieldDescriptions": {
+        "maxAutonomousRuns": "空欄なら無制限。0 にすると自動続行が無効になります",
+        "strictExecutionContract": "Ready／wait プロトコルに従い、修正を 1 回試みてから一時停止します",
+        "hideUnfocusedPrompt": "各リクエストに含まれる [PI GOAL UNFOCUSED] リマインダーの送信を停止します",
+        "provider": "空欄にするとセッションのモデルを使います",
+        "model": "モデル ID（例：claude-opus-5-5）"
       }
     }
   }

@@ -8,7 +8,12 @@ describe('defaultAppLanguage', () => {
     expect(defaultAppLanguage({ LC_MESSAGES: 'zh_TW.UTF-8', LANG: 'en_US.UTF-8' }, 'en-US')).toBe('zh')
   })
 
-  it('falls back to English outside a Chinese locale', () => {
+  it('recognizes Japanese locale variables and the system locale', () => {
+    expect(defaultAppLanguage({ LANG: 'ja_JP.UTF-8' }, 'en-US')).toBe('ja')
+    expect(defaultAppLanguage({}, 'ja-JP')).toBe('ja')
+  })
+
+  it('falls back to English for an unsupported locale', () => {
     expect(defaultAppLanguage({ LANG: 'de_DE.UTF-8' }, 'zh-CN')).toBe('en')
     expect(defaultAppLanguage({ LANG: 'C.UTF-8' }, 'en-US')).toBe('en')
     expect(defaultAppLanguage({}, 'fr-FR')).toBe('en')

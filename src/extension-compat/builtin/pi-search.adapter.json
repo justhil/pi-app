@@ -177,6 +177,9 @@
           },
           "ru": {
             "title": "Основной API поиска"
+          },
+          "ja": {
+            "title": "検索 API"
           }
         }
       },
@@ -249,6 +252,9 @@
           },
           "ru": {
             "title": "Дополнительные источники"
+          },
+          "ja": {
+            "title": "追加の検索ソース"
           }
         }
       },
@@ -275,6 +281,9 @@
           },
           "ru": {
             "title": "Статус возможностей"
+          },
+          "ja": {
+            "title": "各機能の状態"
           }
         }
       }
@@ -306,6 +315,9 @@
       },
       "ru": {
         "note": "Записывает в тот же ~/.config/pi-search/config.json, что и расширение pi-search; переменные окружения имеют приоритет. Оставьте ключ пустым, чтобы сохранить текущее значение."
+      },
+      "ja": {
+        "note": "拡張機能と同じ ~/.config/pi-search/config.json に保存します。環境変数が優先されます。キー欄を空のままにすると保存済みのキーを維持します。"
       }
     }
   },
@@ -400,6 +412,33 @@
       },
       "actionLabels": {
         "test": "Проверить соединение"
+      }
+    },
+    "ja": {
+      "displayName": "Pi Search",
+      "description": "AI 検索、ドキュメント検索、ページの取得（~/.config/pi-search/config.json を読み書き）",
+      "fieldLabels": {
+        "searchApiUrl": "検索 API の URL",
+        "searchApiKey": "検索 API キー",
+        "searchModel": "検索モデル",
+        "searchProfile": "検索モード",
+        "fallbackMode": "フォールバック",
+        "minimumProfile": "最低限のプロファイル",
+        "tavilyApiUrl": "Tavily の URL",
+        "tavilyApiKey": "Tavily のキー",
+        "firecrawlApiUrl": "Firecrawl の URL",
+        "firecrawlApiKey": "Firecrawl のキー",
+        "context7BaseUrl": "Context7 の URL",
+        "context7ApiKey": "Context7 のキー",
+        "exaBaseUrl": "Exa の URL",
+        "exaApiKey": "Exa のキー",
+        "searchApiProtocol": "API プロトコル",
+        "thinkingLevel": "思考レベル",
+        "context7ResolveTtlHours": "Context7 ライブラリのキャッシュ保持時間（時間）",
+        "context7DocsTtlHours": "Context7 ドキュメントのキャッシュ保持時間（時間）"
+      },
+      "actionLabels": {
+        "test": "接続をテスト"
       }
     }
   }

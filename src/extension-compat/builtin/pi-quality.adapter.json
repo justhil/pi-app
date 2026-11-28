@@ -95,6 +95,9 @@
           },
           "ru": {
             "title": "Контроль качества и ревью"
+          },
+          "ja": {
+            "title": "品質ゲートとレビュー"
           }
         }
       }
@@ -109,6 +112,9 @@
       },
       "ru": {
         "note": "Сохраняется в ~/.pi/agent/pi-quality.json. Команда /gate [goal|on|off] переключает режим контроля в сессии (клик по индикатору внизу открывает эту страницу), /review запускает ревью кода в чистом контексте."
+      },
+      "ja": {
+        "note": "~/.pi/agent/pi-quality.json に保存します。チャットで /gate [goal|on|off] を使うとゲートのモードを切り替えられます。ステータスバーのバッジからもこのページを開けます。/review で独立したコンテキストの読み取り専用コードレビューを開始します。"
       }
     }
   },
@@ -171,6 +177,26 @@
         "diagnostics": "Быстрая проверка синтаксиса и типов после edit / write",
         "model": "Формат: provider/modelId; иначе используется модель сессии",
         "reviewModel": "Модель для проверки кода /review в чистом контексте"
+      }
+    },
+    "ja": {
+      "displayName": "Quality Gate",
+      "description": "完了条件の検証（/gate）、編集後の診断、独立したコンテキストでのコードレビュー（/review）。設定は ~/.pi/agent/pi-quality.json に保存されます。",
+      "statusBar": {
+        "title": "品質ゲート"
+      },
+      "fieldLabels": {
+        "gate": "完了時の検証モード",
+        "maxRejections": "連続で差し戻す回数の上限",
+        "diagnostics": "編集後の診断",
+        "model": "完了時の検証モデル",
+        "reviewModel": "/review 用モデル"
+      },
+      "fieldDescriptions": {
+        "gate": "goal：/goal 完了時のみ検証、on：毎ターン検証、off：無効",
+        "diagnostics": "編集や書き込みの後に構文と型を簡易チェックします",
+        "model": "形式：provider/modelId。未指定の場合は現在のセッションのモデルを使います",
+        "reviewModel": "独立したコンテキストで /review を実行するモデル"
       }
     }
   }

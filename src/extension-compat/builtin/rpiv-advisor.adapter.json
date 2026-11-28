@@ -65,6 +65,9 @@
           },
           "ru": {
             "title": "Модель советника"
+          },
+          "ja": {
+            "title": "アドバイザー用モデル"
           }
         }
       }
@@ -79,6 +82,9 @@
       },
       "ru": {
         "note": "Сохраняется в ~/.config/rpiv-advisor/advisor.json (общий с CLI /advisor). Обратите внимание, что modelKey использует двоеточие (provider:modelId)."
+      },
+      "ja": {
+        "note": "CLI の /advisor と共用する ~/.config/rpiv-advisor/advisor.json に保存します。modelKey は provider:modelId のようにコロンで区切ります。"
       }
     }
   },
@@ -114,6 +120,17 @@
       },
       "fieldDescriptions": {
         "modelKey": "Формат: provider:id (например CloseAI:gpt-5.6-sol); оставьте пустым, чтобы отключить инструмент advisor"
+      }
+    },
+    "ja": {
+      "displayName": "Advisor",
+      "description": "セカンドオピニオン用の advisor ツールカード（~/.config/rpiv-advisor/advisor.json で設定）",
+      "fieldLabels": {
+        "modelKey": "アドバイザー用モデル（provider:modelId）",
+        "effort": "アドバイザーの思考レベル"
+      },
+      "fieldDescriptions": {
+        "modelKey": "形式：provider:id（例：CloseAI:gpt-5.6-sol）。空欄にすると advisor ツールを無効にします"
       }
     }
   }

@@ -1,0 +1,15 @@
+{
+  "title": "アップデートがあります",
+  "versionLine": "v{{latest}} が利用できます（現在は v{{current}}）",
+  "notesHeading": "リリースノート",
+  "noNotes": "このリリースには詳しい変更点が添付されていません。詳細はリリースページをご確認ください。",
+  "remindLater": "後で",
+  "ignoreVersion": "このバージョンをスキップ",
+  "updateNow": "更新",
+  "openRelease": "リリースページを開く",
+  "updating": "更新中…",
+  "downloading": "ダウンロード中…",
+  "downloadingPercent": "ダウンロード中（{{percent}}%）",
+  "launchingInstaller": "インストーラーを起動中…",
+  "downloadFailed": "ダウンロードできませんでした：{{error}}"
+}

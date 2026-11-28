@@ -23,6 +23,9 @@
       },
       "ru": {
         "note": "Генерация AGENTS.md управляется самим расширением; в desktop настроек нет."
+      },
+      "ja": {
+        "note": "AGENTS.md は拡張機能が生成します。デスクトップに設定はありません。"
       }
     }
   },
@@ -38,6 +41,10 @@
     "ru": {
       "displayName": "Agents.md",
       "description": "Генератор AGENTS.md (без slash-команды)"
+    },
+    "ja": {
+      "displayName": "Agents.md",
+      "description": "AGENTS.md の生成（スラッシュコマンドなし）"
     }
   }
 }

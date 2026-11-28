@@ -9,6 +9,7 @@ directories:
 electronLanguages:
   - en-US
   - zh-CN
+  - ja
 
 files:
   - out/**/*

@@ -298,7 +298,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
       dark: backgroundImageSchema.optional(),
     })
     .strict(),
-  language: z.enum(['zh', 'en', 'ru']),
+  language: z.enum(['zh', 'en', 'ru', 'ja']),
   currentProject: z.string().nullable(),
   recentProjects: z.array(z.string()),
   recentProjectsFixedOrder: z.boolean(),

@@ -200,10 +200,10 @@ function namespaceFiles(locale) {
     .sort()
 }
 
-test('locale sets cover the same namespaces in en, zh and ru', () => {
+test('all UI locales cover the same namespaces', () => {
   const en = namespaceFiles('en')
   assert.ok(en.length >= 12, `expected the 12 namespaces, got ${en.length}`)
-  for (const locale of ['zh', 'ru']) {
+  for (const locale of ['zh', 'ru', 'ja']) {
     assert.deepEqual(namespaceFiles(locale), en, `${locale} must carry every en namespace`)
   }
 })
@@ -214,6 +214,23 @@ test('zh carries every en key', () => {
     const zhKeys = basePaths(loadJson(join(LOCALES_DIR, 'zh', `${ns}.json`)))
     const missing = [...enKeys].filter((k) => !zhKeys.has(k))
     assert.deepEqual(missing, [], `zh/${ns}.json is missing: ${missing.slice(0, 10).join(', ')}`)
+  }
+})
+
+test('Japanese has every UI key and preserves interpolation variables', () => {
+  const variables = (text) => [...text.matchAll(/{{\s*([^}]+?)\s*}}/g)].map((match) => match[1]).sort()
+  for (const ns of namespaceFiles('en')) {
+    const en = loadJson(join(LOCALES_DIR, 'en', `${ns}.json`))
+    const ja = loadJson(join(LOCALES_DIR, 'ja', `${ns}.json`))
+    const keys = leafPaths(en).filter((key) => !key.endsWith('_one'))
+    assert.deepEqual(leafPaths(ja).sort(), keys.sort(), ns)
+    for (const key of keys) {
+      const source = leafValue(en, key)
+      const translated = leafValue(ja, key)
+      assert.equal(typeof translated, 'string', `${ns}:${key}`)
+      if (source.trim()) assert.ok(translated.trim(), `${ns}:${key} is empty`)
+      assert.deepEqual(variables(translated), variables(source), `${ns}:${key}`)
+    }
   }
 })
 

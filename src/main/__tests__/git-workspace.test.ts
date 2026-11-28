@@ -49,7 +49,7 @@ describe('git-workspace host mode', () => {
     expect(r.ok).toBe(false)
     if (r.ok) throw new Error('expected runGit to fail outside a repo')
     expect(r.notRepo).toBe(true)
-    expect([mainLabel('zh', 'git.notRepo'), mainLabel('en', 'git.notRepo'), mainLabel('ru', 'git.notRepo')]).toContain(
+    expect([mainLabel('zh', 'git.notRepo'), mainLabel('en', 'git.notRepo'), mainLabel('ru', 'git.notRepo'), mainLabel('ja', 'git.notRepo')]).toContain(
       r.message,
     )
   })

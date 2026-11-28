@@ -92,6 +92,9 @@
           },
           "ru": {
             "title": "Продолжение"
+          },
+          "ja": {
+            "title": "続行"
           }
         }
       },
@@ -145,6 +148,9 @@
           },
           "ru": {
             "title": "Артефакты и инструкции"
+          },
+          "ja": {
+            "title": "成果物とガイド"
           }
         }
       },
@@ -179,6 +185,9 @@
           },
           "ru": {
             "title": "Теги контекста"
+          },
+          "ja": {
+            "title": "コンテキストタグ"
           }
         }
       }
@@ -193,6 +202,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/extensions/pi-continue.json (проектный .pi/extensions/pi-continue.json имеет приоритет; общий с /continue config)."
+      },
+      "ja": {
+        "note": "~/.pi/agent/extensions/pi-continue.json に保存します（/continue config と共用）。プロジェクト側の .pi/extensions/pi-continue.json が優先されます。"
       }
     }
   },
@@ -268,6 +280,29 @@
       "fieldDescriptions": {
         "summarizerModel": "provider/model или inherit для наследования текущей модели",
         "historyMaxTokens": "Оставьте пустым или 0 для значения Pi по умолчанию"
+      }
+    },
+    "ja": {
+      "displayName": "Continue",
+      "description": "実行途中からの続行（~/.pi/agent/extensions/pi-continue.json で設定）",
+      "fieldLabels": {
+        "enabled": "続行を有効にする",
+        "summarizerModel": "引き継ぎ用モデル",
+        "reasoning": "思考レベル",
+        "historyMaxTokens": "履歴の最大トークン数",
+        "midRunGuardEnabled": "実行途中のガード",
+        "showAfterCompact": "圧縮後に表示",
+        "continuationArtifactMode": "引き継ぎ成果物の出力",
+        "agentGuidePath": "AGENTS.md のパス",
+        "agentGuideSyncMode": "ガイドの同期モード",
+        "promptOverridePolicy": "プロンプトの上書き方針",
+        "appendCompactionMetadata": "圧縮のメタデータを追加",
+        "appendReadFileTags": "読み取ったファイルのタグを追加",
+        "appendModifiedFileTags": "変更したファイルのタグを追加"
+      },
+      "fieldDescriptions": {
+        "summarizerModel": "provider/model を指定します。inherit を指定すると現在のモデルを使います",
+        "historyMaxTokens": "空欄または 0 にすると pi の既定値を使います"
       }
     }
   }

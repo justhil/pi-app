@@ -34,6 +34,9 @@
       },
       "ru": {
         "note": "Протокол инструментов заменяется расширением внутри Worker; desktop лишь оформляет вывод в таймлайне. Установка: pi install npm:@jerryan/pi-hashline-edit. Подмодули extensions/core.ts, insert.ts, grep.ts можно включить через pi config или settings.packages."
+      },
+      "ja": {
+        "note": "拡張機能はワーカー内でツールのプロトコルを置き換えます。デスクトップは出力をタイムライン上で整形します。pi install npm:@jerryan/pi-hashline-edit でインストールし、extensions/core.ts、insert.ts、grep.ts などのサブモジュールを pi config または settings.packages で有効にしてください。"
       }
     }
   },
@@ -52,6 +55,10 @@
     "ru": {
       "displayName": "Hashline Edit",
       "description": "Хеш-привязка для read/edit/insert/grep; специальный предпросмотр hashline в таймлайне"
+    },
+    "ja": {
+      "displayName": "Hashline Edit",
+      "description": "ハッシュで行を指定する read／edit／insert／grep と、タイムラインの専用プレビュー"
     }
   }
 }

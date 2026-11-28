@@ -9,6 +9,7 @@ const schemaPath = join(root, 'src/extension-compat/adapter-schema.ts')
 
 const CJK_RE = /[\u4e00-\u9fff]/
 const CYRILLIC_RE = /[\u0400-\u04ff]/
+const KANA_RE = /[\u3041-\u3096\u30a1-\u30fa]/
 
 /** Mirror `resolveAdapterText` in `src/extension-compat/adapter-schema.ts`. */
 function resolveAdapterText(a, language) {
@@ -152,15 +153,18 @@ describe('built-in adapter i18n coverage & fallback', () => {
     assert.equal(zhResolved.note, '中文说明')
   })
 
-  it('provides complete zh, en, and ru i18n for every built-in adapter without CJK leakage', () => {
+  it('provides complete zh, en, ru, and ja i18n for every built-in adapter', () => {
     for (const file of files) {
       const raw = readFileSync(join(builtinDir, file), 'utf8')
       const adapter = JSON.parse(raw)
 
-      for (const locale of ['zh', 'en', 'ru']) {
+      for (const locale of ['zh', 'en', 'ru', 'ja']) {
         assert.ok(adapter.i18n?.[locale], `${file}: missing i18n.${locale}`)
         assert.ok(adapter.i18n[locale].displayName, `${file}: missing i18n.${locale}.displayName`)
         assert.ok(adapter.i18n[locale].description, `${file}: missing i18n.${locale}.description`)
+        if (adapter.i18n.en.statusBar?.title) {
+          assert.ok(adapter.i18n[locale].statusBar?.title, `${file}: missing i18n.${locale}.statusBar.title`)
+        }
 
         if (adapter.config?.note) {
           assert.ok(
@@ -237,6 +241,12 @@ describe('built-in adapter i18n coverage & fallback', () => {
           CYRILLIC_RE,
           `${file}: ru note must contain Cyrillic`,
         )
+      }
+
+      const jaResolved = resolveAdapterText(adapter, 'ja-JP')
+      assert.match(jaResolved.description ?? '', KANA_RE, `${file}: ja description must contain kana`)
+      if (adapter.config?.note) {
+        assert.match(jaResolved.note ?? '', KANA_RE, `${file}: ja note must contain kana`)
       }
     }
   })

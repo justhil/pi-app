@@ -421,11 +421,12 @@ export function GeneralSettings() {
 
       <SettingsSection title={t('settings:general.language')}>
         <SettingRow label={t('settings:general.language')} description={t('settings:general.languageDesc')}>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {[
               { key: 'zh' as const, label: t('settings:general.langZh') },
               { key: 'en' as const, label: t('settings:general.langEn') },
               { key: 'ru' as const, label: t('settings:general.langRu') },
+              { key: 'ja' as const, label: t('settings:general.langJa') },
             ].map((l) => (
               <button
                 key={l.key}
