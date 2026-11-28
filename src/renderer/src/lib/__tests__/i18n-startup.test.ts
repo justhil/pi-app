@@ -52,11 +52,25 @@ describe('startup language hydration', () => {
     expect(i18n.t('common:composer.send')).toBe('Отправить')
   })
 
+  it('should_use_saved_japanese_when_current_language_is_english', async () => {
+    await i18n.changeLanguage('en')
+    const invokeMock = vi.spyOn(ipcClient, 'invoke').mockResolvedValue({
+      settings: { language: 'ja' },
+    })
+
+    const resolvedLanguage = await hydrateLanguageFromSettings()
+
+    expect(resolvedLanguage).toBe('ja')
+    expect(i18n.resolvedLanguage).toBe('ja')
+    expect(document.documentElement.lang).toBe('ja')
+    expect(i18n.t('common:composer.send')).toBe('送信')
+  })
+
   it('should_fall_back_without_blocking_when_settings_read_fails', async () => {
     const originalLanguage = i18n.resolvedLanguage
     vi.spyOn(ipcClient, 'invoke').mockRejectedValue(new Error('settings unavailable'))
 
-    await expect(hydrateLanguageFromSettings()).resolves.toMatch(/^(zh|en|ru)$/)
+    await expect(hydrateLanguageFromSettings()).resolves.toMatch(/^(zh|en|ru|ja)$/)
     expect(i18n.resolvedLanguage).toBe(originalLanguage)
   })
 })

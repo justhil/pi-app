@@ -10,7 +10,7 @@ import type { CompletionUiLanguage } from '@shared/completion-preview'
  */
 export function resolveUiLanguage(): CompletionUiLanguage {
   const language = configStore.get('language')
-  const resolved: CompletionUiLanguage = language === 'ru' ? 'ru' : language === 'en' ? 'en' : 'zh'
+  const resolved: CompletionUiLanguage = language === 'ru' || language === 'en' || language === 'ja' ? language : 'zh'
   // Keep the config-free main-label language in sync for worker/git/WSL helpers.
   setMainUiLanguage(resolved)
   return resolved

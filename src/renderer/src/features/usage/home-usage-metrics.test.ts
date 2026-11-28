@@ -20,6 +20,7 @@ describe('home-usage-metrics', () => {
     expect(formatHomeDuration(ms, 'zh')).toBe('6 小时 55 分')
     expect(formatHomeDuration(ms, 'en')).toBe('6h 55m')
     expect(formatHomeDuration(ms, 'ru')).toBe('6 ч 55 мин')
+    expect(formatHomeDuration(ms, 'ja-JP')).toBe('6 時間 55 分')
     expect(formatHomeDuration(null, 'zh')).toBe('—')
   })
 

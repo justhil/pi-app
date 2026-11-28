@@ -23,6 +23,9 @@
       },
       "ru": {
         "note": "Память наблюдений и рефлексии поддерживается расширением автоматически (compactAfterTokens); в desktop настроек нет."
+      },
+      "ja": {
+        "note": "観察と振り返りのメモリは拡張機能が自動で管理します（compactAfterTokens）。デスクトップに設定はありません。"
       }
     }
   },
@@ -38,6 +41,10 @@
     "ru": {
       "displayName": "Observational Memory",
       "description": "Наблюдательная память (автоматическая, без slash-команды)"
+    },
+    "ja": {
+      "displayName": "Observational Memory",
+      "description": "観察型メモリ（自動、スラッシュコマンドなし）"
     }
   }
 }

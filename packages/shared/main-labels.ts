@@ -3,7 +3,7 @@
  * reach the renderer as toast text). They follow the app language from Settings, the same way
  * tray and desktop alerts do - see src/main/ui-language.ts.
  */
-export type MainUiLanguage = 'zh' | 'en' | 'ru'
+export type MainUiLanguage = 'zh' | 'en' | 'ru' | 'ja'
 
 const LABELS: Record<MainUiLanguage, Record<string, string>> = {
   zh: {
@@ -81,6 +81,44 @@ const LABELS: Record<MainUiLanguage, Record<string, string>> = {
     'prompts.systemDefaultPreviewDesc': 'System prompt assembled for the current session (read-only preview)',
     'prompts.globalSystemSeed': '# pi System Prompt\n\nSaving this file replaces the built-in harness default prompt (matches terminal pi SYSTEM.md).\n\n',
     'release.fetchFailed': 'Could not fetch GitHub Releases',
+  },
+  ja: {
+    'git.notRepo': 'このフォルダーは Git リポジトリではありません',
+    'git.commandFailed': 'Git コマンドに失敗しました',
+    'git.applyFailed': 'git apply に失敗しました',
+    'git.applyReverseFailed': 'git apply -R に失敗しました',
+    'worker.fatalExit': 'ワーカーが終了しました。ワークスペースを開き直してください。画面が空白のままの場合は、タスク マネージャーから余分な pi Desktop プロセスを終了してください。',
+    'wsl.sdkMissingInstall': '[WSL] ディストリビューション {distro} に pi-coding-agent が見つかりません。WSL 内で npm i -g @earendil-works/pi-coding-agent を実行してください。',
+    'wsl.workerSyncFailed': '[WSL] ワーカーをディストリビューションに同期できませんでした。out/main/worker.mjs を確認してください。',
+    'wsl.sdkMissingSwitch': 'WSL 内に pi-coding-agent が見つからないため、グローバル版に切り替えられません',
+    'wsl.sdkMissingPreview': '[WSL] ディストリビューション {distro} に pi-coding-agent が見つかりません',
+    'wsl.previewSyncFailed': '[WSL] プレビュー用ユーティリティをディストリビューションに同期できませんでした',
+    'workers.poolLimit': '同時実行の上限（{max} セッション）に達しました。いずれかのタスクを停止するか、「設定 → 一般 → 同時実行数の上限」で上限を増やしてください。',
+    'purge.dirMissing': 'ディレクトリが見つかりません：{dir}',
+    'purge.ghInputRequired': 'GitHub リポジトリの URL または owner/repo を入力してください',
+    'purge.ghOnlyGithub': 'GitHub のリポジトリ URL のみ使用できます',
+    'purge.ghBadUrl': 'GitHub リポジトリの URL が正しくありません',
+    'purge.ghFormatExample': '入力例：ZiChuanLan/some-magic',
+    'purge.ghApiFailed': 'GitHub API リクエストに失敗しました（HTTP {status}）',
+    'session.newTitle': '新しいセッション',
+    'alert.open': 'アプリに戻る',
+    'chrome.helpTitle': 'pi が操作を待っています',
+    'chrome.helpAt': '対象：{target}',
+    'chrome.allow': '許可',
+    'chrome.deny': '拒否',
+    'chrome.done': '完了',
+    'chrome.giveUp': '中止',
+    'dialog.openDirectory': 'プロジェクトフォルダーを選択',
+    'dialog.openFiles': '添付ファイルを追加',
+    'sandbox.tempChatTitle': '一時チャット {id}',
+    'revision.beforeSave': '保存前',
+    'revision.beforeRestore': '復元前',
+    'revision.notFound': '該当するバージョンが見つかりません',
+    'prompts.readOnlyCannotSave': '読み取り専用のプレビューは保存できません',
+    'prompts.emptyPreview': '（空）',
+    'prompts.systemDefaultPreviewDesc': 'このセッションで使用するシステムプロンプト（読み取り専用）',
+    'prompts.globalSystemSeed': '# pi のシステムプロンプト\n\nこのファイルを保存すると、pi 内蔵の既定のプロンプトを置き換えます。ターミナル版 pi の SYSTEM.md と同じ動作です。\n\n',
+    'release.fetchFailed': 'GitHub Releases を取得できませんでした',
   },
   ru: {
     'git.notRepo': 'Эта папка — не Git-репозиторий',

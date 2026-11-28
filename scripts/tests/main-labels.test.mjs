@@ -11,7 +11,7 @@ import { join } from 'node:path'
  */
 const SRC = readFileSync(join(process.cwd(), 'packages/shared/main-labels.ts'), 'utf8')
 
-const LANGS = ['zh', 'en', 'ru']
+const LANGS = ['zh', 'en', 'ru', 'ja']
 
 function keysOf(language) {
   const start = SRC.indexOf(`  ${language}: {`)
@@ -23,7 +23,7 @@ function keysOf(language) {
 }
 
 describe('main process labels', () => {
-  it('en, zh and ru carry the same keys', () => {
+  it('all supported languages carry the same keys', () => {
     const zh = keysOf('zh')
     assert.ok(zh.length >= 16, `expected the main label set, got ${zh.length}`)
     for (const language of LANGS.filter((l) => l !== 'zh')) {

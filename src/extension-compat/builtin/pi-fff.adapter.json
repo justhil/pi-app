@@ -45,6 +45,9 @@
           },
           "ru": {
             "title": "Режим FFF"
+          },
+          "ja": {
+            "title": "FFF モード"
           }
         }
       }
@@ -59,6 +62,9 @@
       },
       "ru": {
         "note": "Записывает fff-mode в ~/.pi/agent/settings.json (общий с /fff-mode); вступает в силу со следующей сессии."
+      },
+      "ja": {
+        "note": "fff-mode を ~/.pi/agent/settings.json に保存します（/fff-mode と共用）。次のセッションから適用されます。"
       }
     }
   },
@@ -96,6 +102,16 @@
       },
       "fieldDescriptions": {
         "fff-mode": "tools-and-ui = зарегистрировать fffind/fffgrep вместо find/grep; tools-only = только регистрация; override = оставить исходные инструменты"
+      }
+    },
+    "ja": {
+      "displayName": "FFF",
+      "description": "パスのあいまい検索モード（~/.pi/agent/settings.json の fff-mode を読み書き）",
+      "fieldLabels": {
+        "fff-mode": "検索ツールのモード"
+      },
+      "fieldDescriptions": {
+        "fff-mode": "tools-and-ui：fffind/fffgrep を登録し find/grep を上書き、tools-only：登録のみ、override：元のツールを維持"
       }
     }
   }

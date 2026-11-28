@@ -62,6 +62,9 @@
           },
           "ru": {
             "title": "Учётные данные и источник"
+          },
+          "ja": {
+            "title": "認証情報"
           }
         }
       }
@@ -76,6 +79,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/devin-search.json (общий с CLI). Приоритет: DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → конфиг проекта → глобальный конфиг → автообнаружение из Windsurf state.vscdb."
+      },
+      "ja": {
+        "note": "CLI と共用する ~/.pi/agent/devin-search.json に保存します。認証情報は DEVIN_SEARCH_API_KEY／WINDSURF_API_KEY、プロジェクト設定、グローバル設定、Windsurf の state.vscdb の順に検索されます。"
       }
     }
   },
@@ -120,6 +126,18 @@
       "fieldDescriptions": {
         "apiKey": "Ключ поиска Devin / Windsurf; оставьте пустым для поиска в переменных окружения или локальной БД Windsurf",
         "dbPath": "Необязательно: свой путь к Windsurf state.vscdb для автоизвлечения ключа"
+      }
+    },
+    "ja": {
+      "displayName": "Devin Search",
+      "description": "Devin／Windsurf のウェブ検索。devin_search のツールカードを表示し、~/.pi/agent/devin-search.json で設定できます。",
+      "fieldLabels": {
+        "apiKey": "API キー",
+        "dbPath": "state.vscdb のパス"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Devin／Windsurf の検索用認証情報。空欄にすると環境変数や Windsurf のローカルデータベースから取得します",
+        "dbPath": "認証情報の自動検出に使う Windsurf の state.vscdb のパス（任意）"
       }
     }
   }

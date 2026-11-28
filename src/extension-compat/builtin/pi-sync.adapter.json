@@ -75,6 +75,9 @@
           },
           "ru": {
             "title": "Хранилище R2 / S3"
+          },
+          "ja": {
+            "title": "R2／S3 互換ストレージ"
           }
         }
       },
@@ -109,6 +112,9 @@
           },
           "ru": {
             "title": "Политика синхронизации"
+          },
+          "ja": {
+            "title": "同期ポリシー"
           }
         }
       }
@@ -123,6 +129,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/pi-sync.local.json (общий с /pisync init). После сохранения проверьте соединение в терминале командой /pisync doctor."
+      },
+      "ja": {
+        "note": "/pisync init と共用する ~/.pi/agent/pi-sync.local.json に保存します。保存後にターミナルで /pisync doctor を実行し、接続を確認してください。"
       }
     }
   },
@@ -186,6 +195,25 @@
       "fieldDescriptions": {
         "endpoint": "Например: https://xxx.r2.cloudflarestorage.com",
         "sessionToken": "Необязательно: временный токен доступа"
+      }
+    },
+    "ja": {
+      "displayName": "Pi Sync",
+      "description": "設定を R2 に同期（~/.pi/agent/pi-sync.local.json で設定）",
+      "fieldLabels": {
+        "endpoint": "エンドポイント URL",
+        "bucket": "バケット",
+        "region": "リージョン",
+        "accessKeyId": "アクセスキー ID",
+        "secretAccessKey": "シークレットアクセスキー",
+        "sessionToken": "セッショントークン",
+        "profile": "プロファイル名",
+        "prefix": "オブジェクトのプレフィックス",
+        "autoSync": "セッション終了時に自動同期"
+      },
+      "fieldDescriptions": {
+        "endpoint": "例：https://xxx.r2.cloudflarestorage.com",
+        "sessionToken": "一時認証情報（任意）"
       }
     }
   }

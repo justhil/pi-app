@@ -40,6 +40,15 @@ describe('completion preview sanitizer', () => {
 })
 
 describe('completion notification copy', () => {
+  it('localizes Japanese completion text and duration', () => {
+    const copy = buildCompletionNotificationCopy({
+      language: 'ja', outcome: 'cancelled', durationMs: 2500, previewMode: 'fixed',
+    })
+    expect(copy.meta).toBe('キャンセル · 3 秒')
+    expect(copy.openLabel).toBe('セッションを開く')
+    expect(copy.title).toBe('タスクが完了しました')
+  })
+
   it('uses a fixed privacy body and never invents project data for tests', () => {
     const copy = buildCompletionNotificationCopy({
       language: 'zh',

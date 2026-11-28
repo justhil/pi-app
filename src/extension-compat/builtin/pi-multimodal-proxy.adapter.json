@@ -85,6 +85,9 @@
           },
           "ru": {
             "title": "Режим прокси"
+          },
+          "ja": {
+            "title": "プロキシモード"
           }
         }
       },
@@ -144,6 +147,9 @@
           },
           "ru": {
             "title": "Модель изображений"
+          },
+          "ja": {
+            "title": "画像モデル"
           }
         }
       },
@@ -172,6 +178,9 @@
           },
           "ru": {
             "title": "Видеомодель"
+          },
+          "ja": {
+            "title": "動画モデル"
           }
         }
       },
@@ -194,6 +203,9 @@
           },
           "ru": {
             "title": "Карточка в desktop"
+          },
+          "ja": {
+            "title": "デスクトップカード"
           }
         }
       }
@@ -208,6 +220,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/multimodal-proxy.json (общий с расширением). provider/modelId должны соответствовать модели, авторизованной через pi --login. showInlinePreview — локальный переключатель desktop."
+      },
+      "ja": {
+        "note": "拡張機能と共用する ~/.pi/agent/multimodal-proxy.json に保存します。provider/modelId には pi --login でログイン済みのモデルを指定してください。showInlinePreview はデスクトップ専用の設定です。"
       }
     }
   },
@@ -283,6 +298,29 @@
         "mode": "fallback = включать, только если модель не поддерживает изображения; always = всегда включено; off = выключено",
         "provider": "Идентификатор провайдера (например anthropic / CloseAI), требуется вход через pi --login",
         "systemPrompt": "Оставьте пустым для значения расширения по умолчанию"
+      }
+    },
+    "ja": {
+      "displayName": "Multimodal Vision",
+      "description": "画像・動画の解析プロキシ（~/.pi/agent/multimodal-proxy.json で設定）",
+      "fieldLabels": {
+        "mode": "プロキシモード",
+        "tool": "ツール呼び出し",
+        "provider": "プロバイダー",
+        "modelId": "画像解析モデル ID",
+        "systemPrompt": "システムプロンプト",
+        "includeContext": "セッションのコンテキストを含める",
+        "maxImagesPerCall": "1 回あたりの最大画像数",
+        "maxBatch": "最大バッチサイズ",
+        "cacheSize": "キャッシュサイズ",
+        "videoProvider": "動画用プロバイダー",
+        "videoModelId": "動画解析モデル ID",
+        "showInlinePreview": "タイムラインに画像のインラインプレビューを表示"
+      },
+      "fieldDescriptions": {
+        "mode": "fallback：現在のモデルが画像に非対応のときだけ有効、always：常に有効、off：無効",
+        "provider": "モデルのプロバイダー ID（anthropic／CloseAI など）。pi --login でのログインが必要です",
+        "systemPrompt": "空欄にすると拡張機能の既定値を使います"
       }
     }
   }

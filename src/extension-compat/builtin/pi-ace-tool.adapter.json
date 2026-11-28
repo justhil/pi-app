@@ -72,6 +72,9 @@
           },
           "ru": {
             "title": "Подключение к API"
+          },
+          "ja": {
+            "title": "API 接続"
           }
         }
       },
@@ -111,6 +114,9 @@
           },
           "ru": {
             "title": "Улучшение промптов"
+          },
+          "ja": {
+            "title": "プロンプト改善"
           }
         }
       }
@@ -138,6 +144,9 @@
       },
       "ru": {
         "note": "Записывает в ~/.pi/agent/ace-tool.json (общий с расширением). При apiMode=official-oauth сначала выполните OAuth-вход командой /ace-login в терминале."
+      },
+      "ja": {
+        "note": "拡張機能と共用する ~/.pi/agent/ace-tool.json に保存します。apiMode=official-oauth を使う場合は、先にターミナルで /ace-login を実行して OAuth 認証を完了してください。"
       }
     }
   },
@@ -206,6 +215,28 @@
       },
       "actionLabels": {
         "test": "Проверить соединение"
+      }
+    },
+    "ja": {
+      "displayName": "ACE Tool",
+      "description": "ACE によるコード解析（~/.pi/agent/ace-tool.json の設定と接続テスト）",
+      "fieldLabels": {
+        "apiMode": "API モード",
+        "baseUrl": "互換プロキシのベース URL",
+        "token": "互換プロキシのトークン",
+        "autoIndexOnSessionStart": "セッション開始時にインデックスを自動作成",
+        "promptEnhancerMode": "プロンプト改善モード",
+        "promptEnhancerModel": "プロンプト改善モデル",
+        "promptEnhancerIncludeSearchContext": "改善時に検索結果を含める"
+      },
+      "fieldDescriptions": {
+        "apiMode": "auto：利用可能な認証情報から選択、compat：互換プロキシ、official-oauth：公式 OAuth",
+        "baseUrl": "compat モードで使うプロキシの URL（末尾に / を付ける）",
+        "token": "保存したトークンを消去するには - を入力します",
+        "promptEnhancerModel": "形式：provider/model"
+      },
+      "actionLabels": {
+        "test": "接続をテスト"
       }
     }
   }

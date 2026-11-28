@@ -28,6 +28,9 @@
       },
       "ru": {
         "note": "Список скиллов динамически загружается из Worker resourceLoader.getSkills; переключатели в desktop управляют только отключением в приложении и не изменяют pi settings.json."
+      },
+      "ja": {
+        "note": "ワーカーが resourceLoader.getSkills でスキル一覧を読み込みます。切り替えはデスクトップ上でのみ有効で、pi の settings.json は変更されません。"
       }
     }
   },
@@ -47,6 +50,10 @@
     "ru": {
       "displayName": "Skills Manager",
       "description": "Поиск и переключение скиллов в desktop (показывает загруженные Worker'ом скиллы)"
+    },
+    "ja": {
+      "displayName": "Skills Manager",
+      "description": "ワーカーが読み込んだスキルを一覧表示し、デスクトップで有効・無効を切り替えます"
     }
   }
 }

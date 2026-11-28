@@ -39,14 +39,28 @@ import ruFiles from '../locales/ru/files.json'
 import ruUpdate from '../locales/ru/update.json'
 import ruBrowser from '../locales/ru/browser.json'
 import ruSsh from '../locales/ru/ssh.json'
+import jaCommon from '../locales/ja/common.json'
+import jaTimeline from '../locales/ja/timeline.json'
+import jaReview from '../locales/ja/review.json'
+import jaSettings from '../locales/ja/settings.json'
+import jaComposer from '../locales/ja/composer.json'
+import jaContext from '../locales/ja/context.json'
+import jaAdapters from '../locales/ja/adapters.json'
+import jaRun from '../locales/ja/run.json'
+import jaExtension from '../locales/ja/extension.json'
+import jaFiles from '../locales/ja/files.json'
+import jaUpdate from '../locales/ja/update.json'
+import jaBrowser from '../locales/ja/browser.json'
+import jaSsh from '../locales/ja/ssh.json'
 import { ipcClient } from './ipc-client'
 
-export type AppLanguage = 'zh' | 'en' | 'ru'
+export type AppLanguage = 'zh' | 'en' | 'ru' | 'ja'
 
 function detectInitialLanguage(): AppLanguage {
   const systemLanguage = (navigator.language || 'en').toLowerCase()
   if (systemLanguage.startsWith('zh')) return 'zh'
   if (systemLanguage.startsWith('ru')) return 'ru'
+  if (systemLanguage.startsWith('ja')) return 'ja'
   return 'en'
 }
 
@@ -55,10 +69,11 @@ function normalizeAppLanguage(language: unknown, fallbackLanguage: AppLanguage):
   if (normalizedLanguage.startsWith('zh')) return 'zh'
   if (normalizedLanguage.startsWith('en')) return 'en'
   if (normalizedLanguage.startsWith('ru')) return 'ru'
+  if (normalizedLanguage.startsWith('ja')) return 'ja'
   return fallbackLanguage
 }
 
-const DOCUMENT_LANG: Record<AppLanguage, string> = { zh: 'zh-CN', en: 'en', ru: 'ru' }
+const DOCUMENT_LANG: Record<AppLanguage, string> = { zh: 'zh-CN', en: 'en', ru: 'ru', ja: 'ja' }
 
 function applyDocumentLanguage(language: AppLanguage): void {
   document.documentElement.lang = DOCUMENT_LANG[language]
@@ -110,6 +125,21 @@ const i18nInitialization = i18n.use(initReactI18next).init({
       update: ruUpdate,
       browser: ruBrowser,
       ssh: ruSsh,
+    },
+    ja: {
+      common: jaCommon,
+      timeline: jaTimeline,
+      review: jaReview,
+      settings: jaSettings,
+      composer: jaComposer,
+      context: jaContext,
+      adapters: jaAdapters,
+      run: jaRun,
+      extension: jaExtension,
+      files: jaFiles,
+      update: jaUpdate,
+      browser: jaBrowser,
+      ssh: jaSsh,
     },
   },
   lng: detectInitialLanguage(),

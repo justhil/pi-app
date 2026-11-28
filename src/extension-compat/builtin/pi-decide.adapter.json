@@ -97,6 +97,9 @@
           },
           "ru": {
             "title": "Политика автоответа"
+          },
+          "ja": {
+            "title": "自動回答の方針"
           }
         }
       },
@@ -137,6 +140,9 @@
           },
           "ru": {
             "title": "Контекст судьи и лимиты"
+          },
+          "ja": {
+            "title": "判定用のコンテキストと上限"
           }
         }
       }
@@ -151,6 +157,9 @@
       },
       "ru": {
         "note": "Читает и записывает ~/.pi/agent/pi-decide.json (сохраняя вложенные поля, включая judge.model). Команды /decide status, /decide auto 60, /decide on, /decide hold и /decide reset меняют политику текущей сессии."
+      },
+      "ja": {
+        "note": "~/.pi/agent/pi-decide.json を読み書きします（judge.model などの入れ子の項目も保持）。セッションごとに上書きするには、/decide status、/decide auto 60、/decide on、/decide hold、/decide reset を使用します。"
       }
     }
   },
@@ -213,6 +222,26 @@
         "mode": "off: спрашивать человека с защитным таймером; auto: автоответ по истечении времени; on: всегда отвечать автоматически",
         "timeoutSeconds": "Секунд ожидания в режиме auto до автоответа судьи",
         "deadlineSeconds": "Защитный таймаут в режиме off (0 — ждать бесконечно)"
+      }
+    },
+    "ja": {
+      "displayName": "Decide（自動回答）",
+      "description": "カウントダウンと時間切れ時の自動回答に対応した選択式の質問（~/.pi/agent/pi-decide.json）",
+      "fieldLabels": {
+        "enabled": "pi-decide を有効にする",
+        "mode": "既定のモード",
+        "timeoutSeconds": "auto モードの待ち時間（秒）",
+        "deadlineSeconds": "off モードの安全タイムアウト（秒）",
+        "notify": "自動回答時に通知",
+        "tailMessages": "判定に使う直近のメッセージ数",
+        "maxQuestions": "1 回あたりの最大質問数",
+        "maxOptions": "質問ごとの最大選択肢数",
+        "debug": "デバッグログ"
+      },
+      "fieldDescriptions": {
+        "mode": "off：制限時間付きでユーザーに質問、auto：時間切れなら自動回答、on：常に自動回答",
+        "timeoutSeconds": "auto モードで判定モデルが回答するまでの待機時間（秒）",
+        "deadlineSeconds": "off モードでの待機時間の上限（0 は無期限）"
       }
     }
   }

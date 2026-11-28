@@ -17,16 +17,16 @@ function openTrayMenu(): void {
   const window = getMainWindow()
   const visible = window?.isVisible() ?? false
   const language = resolveUiLanguage()
-  const label = (zh: string, en: string, ru: string) => (language === 'zh' ? zh : language === 'ru' ? ru : en)
+  const label = (zh: string, en: string, ru: string, ja: string) => ({ zh, en, ru, ja })[language]
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: visible
-        ? label('隐藏窗口', 'Hide Window', 'Скрыть окно')
-        : label('显示窗口', 'Show Window', 'Показать окно'),
+        ? label('隐藏窗口', 'Hide Window', 'Скрыть окно', 'ウィンドウを隠す')
+        : label('显示窗口', 'Show Window', 'Показать окно', 'ウィンドウを表示'),
       click: visible ? () => getMainWindow()?.hide() : focusMainWindow,
     },
     { type: 'separator' },
-    { label: label('退出', 'Quit', 'Выход'), click: () => app.quit() },
+    { label: label('退出', 'Quit', 'Выход', '終了'), click: () => app.quit() },
   ]
   Menu.buildFromTemplate(template).popup()
 }

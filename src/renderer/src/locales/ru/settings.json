@@ -26,6 +26,7 @@
     "usage": "Usage"
   },
   "general": {
+    "appAndRightPanels": "Приложение и правые панели",
     "title": "Основные",
     "description": "Запуск, обновления и уведомления.",
     "startup": "Запуск",
@@ -107,6 +108,7 @@
     "langZh": "中文",
     "langEn": "English",
     "langRu": "Русский",
+    "langJa": "日本語",
     "recentProjects": "Недавние проекты",
     "activeSessionsDrawer": "Выдвижная панель активных сессий",
     "activeSessionsDrawerDesc": "Показывать в левой панели над «Настройками» запущенные, непрочитанные и сессии за последний час.",

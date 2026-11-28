@@ -100,6 +100,9 @@
           },
           "ru": {
             "title": "Функции"
+          },
+          "ja": {
+            "title": "機能"
           }
         }
       }
@@ -114,6 +117,9 @@
       },
       "ru": {
         "note": "Тот же файл, что и для переключателей /cache-optimizer расширения; имеет приоритет над переменными окружения и действует для новых сессий. Вызов /cache-optimizer с аргументами (status, stats…) по-прежнему выполняется расширением."
+      },
+      "ja": {
+        "note": "拡張機能の /cache-optimizer と同じファイルに機能のオン・オフを保存します。環境変数より優先され、新規セッションから適用されます。status、stats などの引数付き /cache-optimizer は引き続き拡張機能で実行されます。"
       }
     }
   },
@@ -176,6 +182,25 @@
         "promptRewrite": "Переставляет изменчивые фрагменты, чтобы префикс промпта лучше кэшировался",
         "openAICacheKey": "Добавляет prompt_cache_key в OpenAI-совместимые запросы",
         "virtualRewrite": "Экспериментальная функция"
+      }
+    },
+    "ja": {
+      "displayName": "Cache Optimizer",
+      "description": "プロンプトキャッシュのヒット率を改善します。機能の設定は ~/.pi/agent/pi-cache-optimizer-config.json に保存されます。",
+      "fieldLabels": {
+        "promptRewrite": "システムプロンプトを安定化",
+        "skillCompression": "スキル一覧を圧縮",
+        "openAICacheKey": "OpenAI のキャッシュキー",
+        "zeroPriceWarming": "無料のキャッシュウォームアップ",
+        "statsIncremental": "統計を差分更新",
+        "virtualRewrite": "仮想書き換え",
+        "toolOrder": "ツールの順序を固定",
+        "footerMode": "統計の集計範囲"
+      },
+      "fieldDescriptions": {
+        "promptRewrite": "変動する内容の位置を移し、プロンプトの先頭部分をキャッシュできる状態に保ちます",
+        "openAICacheKey": "OpenAI 互換リクエストに prompt_cache_key を追加します",
+        "virtualRewrite": "実験的な機能"
       }
     }
   }

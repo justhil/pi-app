@@ -88,6 +88,9 @@
           },
           "ru": {
             "title": "Контрольные точки и хранение"
+          },
+          "ja": {
+            "title": "チェックポイントと保持期間"
           }
         }
       }
@@ -102,6 +105,9 @@
       },
       "ru": {
         "note": "Автоматически записывает Git-снимки (refs/pi-rewind/store) до и после каждого хода; при переходе по дереву или форке появляется диалог восстановления файлов, диалога или обоих."
+      },
+      "ja": {
+        "note": "各ターンの前後に Git スナップショット（refs/pi-rewind/store）を自動で記録します。ツリー内を移動したりフォークしたりする際に、ファイル、会話、または両方を復元するか選べます。"
       }
     }
   },
@@ -158,6 +164,24 @@
       },
       "statusBar": {
         "title": "Снимки Rewind"
+      }
+    },
+    "ja": {
+      "displayName": "Rewind Hook",
+      "description": "Git チェックポイントを自動作成し、ファイルと会話を復元します（~/.pi/agent/settings.json で設定）",
+      "fieldLabels": {
+        "silentCheckpoints": "チェックポイント作成時の通知を抑制",
+        "maxSnapshots": "保持するスナップショットの上限",
+        "maxAgeDays": "スナップショットの最大保持日数",
+        "pinLabeledEntries": "ラベル付きの項目を固定",
+        "scanMode": "保持対象のスキャンモード",
+        "startupBudgetMs": "起動時のクリーンアップ時間の上限（ミリ秒）"
+      },
+      "fieldDescriptions": {
+        "silentCheckpoints": "チェックポイントを作成したときのステータス通知を表示しません"
+      },
+      "statusBar": {
+        "title": "巻き戻し用スナップショット"
       }
     }
   }
