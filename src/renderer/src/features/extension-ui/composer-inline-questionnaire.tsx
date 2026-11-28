@@ -29,7 +29,7 @@ import {
 } from './questionnaire-model'
 import { QuestionnaireOptions } from './questionnaire-options'
 import { QuestionnaireCountdownBadge } from './questionnaire-countdown-badge'
-import { QuestionnaireMarkdown } from './questionnaire-markdown'
+import { looksLikeAsciiDiagram, QuestionnaireMarkdown } from './questionnaire-markdown'
 import type { AskQuestionPayload } from './questionnaire-dialog'
 
 const AUTO_ADVANCE_MS = 110
@@ -265,7 +265,9 @@ function InlineQuestionnaireCard({
 
   const activePreview =
     q.options.find((o) => o.label === previewLabel)?.preview ||
-    q.options.find((o) => draft.selected.includes(o.label))?.preview
+    q.options.find((o) => draft.selected.includes(o.label))?.preview ||
+    (q.recommended ? q.options.find((o) => o.label === q.recommended)?.preview : undefined) ||
+    q.options.find((o) => typeof o.preview === 'string' && o.preview.trim().length > 0)?.preview
 
   return (
     <div
@@ -385,8 +387,14 @@ function InlineQuestionnaireCard({
               />
 
               {activePreview && (
-                <div className="mt-2 rounded-lg border border-border/65 bg-[var(--bg-1)]/55 p-2.5 font-mono text-[11.5px]">
-                  <QuestionnaireMarkdown content={activePreview} compact />
+                <div className="mt-2 rounded-lg border border-border/65 bg-[var(--bg-1)]/55 p-2.5 text-[12px]">
+                  {looksLikeAsciiDiagram(activePreview) ? (
+                    <pre className="overflow-x-auto font-mono text-[11.5px] leading-[1.45] text-foreground/90">
+                      {activePreview}
+                    </pre>
+                  ) : (
+                    <QuestionnaireMarkdown content={activePreview} compact plainHeadings />
+                  )}
                 </div>
               )}
 

@@ -61,10 +61,19 @@ export type DesktopUIBridge = {
 }
 
 const bridgesByContext = new WeakMap<object, DesktopUIBridge>()
+/**
+ * Symbol property attached to `uiContext` so `getDesktopUIBridge(context.ui)` still resolves
+ * after Pi SDK's `ExtensionRunner.wrapUIPromptContext(ui)` shallow-clones `{ ...ui, select, ... }`.
+ */
+const UI_BRIDGE_HANDLE = Symbol.for('pi.desktop.uiBridgeHandle')
+type BridgeHandleCell = { current: DesktopUIBridge | null }
 
 export function getDesktopUIBridge(uiContext: unknown): DesktopUIBridge | null {
   if (!uiContext || typeof uiContext !== 'object') return null
-  return bridgesByContext.get(uiContext as object) ?? null
+  const direct = bridgesByContext.get(uiContext as object)
+  if (direct) return direct
+  const cell = (uiContext as Record<symbol, unknown>)[UI_BRIDGE_HANDLE] as BridgeHandleCell | undefined
+  return cell && typeof cell === 'object' ? cell.current : null
 }
 
 export type ExtensionUIResponse = {
@@ -364,9 +373,17 @@ export function createDesktopUIBridge(
         p.reject(new Error('UI bridge disposed'))
       }
       pending.clear()
+      handleCell.current = null
       bridgesByContext.delete(uiContext)
+      delete (uiContext as Record<symbol, unknown>)[UI_BRIDGE_HANDLE]
     },
   }
+  const handleCell: BridgeHandleCell = { current: bridge }
+  Object.defineProperty(uiContext, UI_BRIDGE_HANDLE, {
+    value: handleCell,
+    enumerable: true,
+    configurable: true,
+  })
   bridgesByContext.set(uiContext, bridge)
   return bridge
 }

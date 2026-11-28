@@ -299,7 +299,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
         extensionFactories: [...piBuiltinExtensions(sdk), codemodeStatsExtension, capabilitiesExtension, browserToolsExtension, canvasToolsExtension, modelRoutersExtension(agentDir), usageMetricsExtension],
-        extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
+        extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd, () => st.uiBridge),
         skillsOverride: applySkillsOverride as never,
       },
     })

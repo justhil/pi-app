@@ -8,6 +8,7 @@ import type {
 import { resolveV2ByPluginName } from '../extension-compat/adapter-loader.js'
 import {
   getDesktopUIBridge,
+  type DesktopUIBridge,
   type ExtensionUIQuestion,
 } from './desktop-ui-bridge.js'
 import { createQuestionnaireRpcUI } from './questionnaire-rpc-ui.js'
@@ -27,7 +28,10 @@ function matchedToolName(extension: Extension, cwd: string): string | null {
   return null
 }
 
-function decorateTool(registered: RegisteredTool): RegisteredTool {
+function decorateTool(
+  registered: RegisteredTool,
+  resolveFallbackBridge?: () => DesktopUIBridge | null,
+): RegisteredTool {
   const definition = registered.definition as ToolDefinition
   const execute = definition.execute.bind(definition)
   return {
@@ -36,7 +40,7 @@ function decorateTool(registered: RegisteredTool): RegisteredTool {
       ...definition,
       executionMode: 'sequential',
       async execute(toolCallId, params, signal, onUpdate, context) {
-        const bridge = getDesktopUIBridge(context.ui)
+        const bridge = getDesktopUIBridge(context.ui) ?? resolveFallbackBridge?.() ?? null
         if (!bridge) return execute(toolCallId, params, signal, onUpdate, context)
         const questions = (params as { questions?: ExtensionUIQuestion[] }).questions || []
         const ui = createQuestionnaireRpcUI(
@@ -59,6 +63,7 @@ function decorateTool(registered: RegisteredTool): RegisteredTool {
 export function decorateQuestionnaireTools(
   result: LoadExtensionsResult,
   cwd: string,
+  resolveFallbackBridge?: () => DesktopUIBridge | null,
 ): LoadExtensionsResult {
   return {
     ...result,
@@ -68,7 +73,7 @@ export function decorateQuestionnaireTools(
       const registered = extension.tools.get(toolName)
       if (!registered) return extension
       const tools = new Map(extension.tools)
-      tools.set(toolName, decorateTool(registered))
+      tools.set(toolName, decorateTool(registered, resolveFallbackBridge))
       return { ...extension, tools }
     }),
   }

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { EventBus, ExtensionUIContext } from '@earendil-works/pi-coding-agent'
-import { createDesktopUIBridge } from './desktop-ui-bridge'
+import type { EventBus, ExtensionUIContext, LoadExtensionsResult } from '@earendil-works/pi-coding-agent'
+import { createDesktopUIBridge, getDesktopUIBridge } from './desktop-ui-bridge'
 import { createQuestionnaireRpcUI } from './questionnaire-rpc-ui'
+import { decorateQuestionnaireTools } from './questionnaire-tool-decorator'
 
 describe('questionnaire-rpc-ui & desktop-ui-bridge (pi-decide + pi-plan-mode)', () => {
   it('forwards timeout & deadlineAt to desktop ask_user_question and resolves cancelled on timeout so pi-decide autopilot takes over', async () => {
@@ -143,5 +144,103 @@ describe('questionnaire-rpc-ui & desktop-ui-bridge (pi-decide + pi-plan-mode)', 
 
     const customText = await rpcUi.editor('Rollout strategy?', '')
     expect(customText).toBe('Feature-flag per workspace first')
+  })
+
+  it('resolves DesktopUIBridge even after Pi SDK runner shallow-clones uiContext via { ...ui }', async () => {
+    const emitted: Array<Record<string, unknown>> = []
+    const bus = { on: () => () => {} } as unknown as EventBus
+    const bridge = createDesktopUIBridge(bus, (req) => emitted.push(req as Record<string, unknown>))
+
+    // Simulate Pi SDK 1.6.1 ExtensionRunner.wrapUIPromptContext(ui) shallow clone:
+    const wrappedUi = {
+      ...bridge.uiContext,
+      select: (title: string, options: string[], opts?: { timeout?: number }) =>
+        (bridge.uiContext.select as (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>)(
+          title,
+          options,
+          opts,
+        ),
+    }
+
+    expect(wrappedUi).not.toBe(bridge.uiContext)
+    expect(getDesktopUIBridge(wrappedUi)).toBe(bridge)
+
+    // Verify decorateQuestionnaireTools intercepts pi-decide's ask_user_question into ask_user_question (NOT raw select)
+    const rawToolExecute = vi.fn(async (_id, _params, _sig, _upd, ctx: { ui: ExtensionUIContext }) => {
+      const picked = await ctx.ui.select('Native fallback title', ['Option A ★ recommended', 'Option B'], {
+        timeout: 180_000,
+      })
+      return { content: [{ type: 'text', text: picked ?? 'none' }], details: {} }
+    })
+
+    const fakeResult = {
+      extensions: [
+        {
+          path: 'C:\\Users\\Admin\\.pi\\agent\\npm\\node_modules\\pi-decide\\src\\extension.ts',
+          resolvedPath: 'C:\\Users\\Admin\\.pi\\agent\\npm\\node_modules\\pi-decide\\src\\extension.ts',
+          sourceInfo: { source: 'local' },
+          tools: new Map([
+            [
+              'ask_user_question',
+              {
+                definition: {
+                  name: 'ask_user_question',
+                  execute: rawToolExecute,
+                },
+              },
+            ],
+          ]),
+        },
+      ],
+      errors: [],
+      runtime: {} as never,
+    } as unknown as LoadExtensionsResult
+
+    const decorated = decorateQuestionnaireTools(fakeResult, process.cwd())
+    const tool = decorated.extensions[0].tools.get('ask_user_question')!
+
+    const runPromise = tool.definition.execute(
+      'call-live-1',
+      {
+        questions: [
+          {
+            header: 'Layout',
+            question: 'Preferred layout?',
+            recommended: 'Option A',
+            options: [
+              { label: 'Option A', description: 'Inline' },
+              { label: 'Option B', description: 'Modal' },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      { ui: wrappedUi } as never,
+    )
+
+    // Must emit custom `ask_user_question` with timeout + deadlineAt, NEVER raw `select`!
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0]).toMatchObject({
+      method: 'custom',
+      kind: 'ask_user_question',
+      toolCallId: 'call-live-1',
+      timeout: 180_000,
+    })
+    expect(typeof emitted[0].deadlineAt).toBe('number')
+
+    bridge.handleExtensionUIResponse({
+      id: String(emitted[0].id),
+      result: {
+        cancelled: false,
+        answers: [{ questionIndex: 0, question: 'Preferred layout?', kind: 'option', answer: 'Option A' }],
+      },
+    })
+
+    const res = await runPromise
+    expect((res.content[0] as { text: string }).text).toBe('Option A ★ recommended')
+
+    bridge.dispose()
+    expect(getDesktopUIBridge(wrappedUi)).toBeNull()
   })
 })

@@ -5,6 +5,7 @@ import i18n from '@renderer/lib/i18n'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { QuestionnaireDialog, type AskQuestionPayload } from './questionnaire-dialog'
+import { QuestionnaireCountdownBadge } from './questionnaire-countdown-badge'
 import { hasRichMarkdownSyntax, QuestionnaireMarkdown } from './questionnaire-markdown'
 import { ImageReviewDialog, type ImageReviewPayload } from './image-review-dialog'
 import { ExtensionDialogShell } from './extension-dialog-shell'
@@ -112,10 +113,21 @@ function mapRewindOption(raw: string, t: (key: string) => string): RewindOptionD
   }
 }
 
+function splitPromptTitle(rawTitle: string): { heading: string; details?: string } {
+  const normalized = (rawTitle || '').replace(/\r\n/g, '\n').trim()
+  const nl = normalized.indexOf('\n')
+  if (nl < 0) return { heading: normalized }
+  const heading = normalized.slice(0, nl).trim()
+  const details = normalized.slice(nl + 1).trim()
+  return details ? { heading, details } : { heading }
+}
+
 /** Option list for ui.select: controlled hover + keyboard highlight, localized rewind options. */
 function SelectDialog({
   title,
   options,
+  deadlineAt,
+  timeoutMs,
   suspendable,
   onPick,
   onSuspend,
@@ -123,6 +135,8 @@ function SelectDialog({
 }: {
   title: string
   options: string[]
+  deadlineAt?: number
+  timeoutMs?: number
   suspendable: boolean
   onPick: (value: string) => void
   onSuspend: () => void
@@ -132,8 +146,17 @@ function SelectDialog({
   const listRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const isRewindPrompt = title === 'Restore Options'
-  const displayTitle = isRewindPrompt ? t('extension:rewindPrompt.title') : title
-  const displaySubtitle = isRewindPrompt ? t('extension:rewindPrompt.subtitle') : undefined
+  const split = splitPromptTitle(title)
+  const displayTitle = isRewindPrompt ? t('extension:rewindPrompt.title') : split.heading
+  const displaySubtitle = isRewindPrompt ? (
+    t('extension:rewindPrompt.subtitle')
+  ) : split.details ? (
+    hasRichMarkdownSyntax(split.details) ? (
+      <QuestionnaireMarkdown content={split.details} compact plainHeadings />
+    ) : (
+      <p className="whitespace-pre-wrap break-words">{split.details}</p>
+    )
+  ) : undefined
 
   useEffect(() => {
     setActiveIndex(0)
@@ -183,7 +206,8 @@ function SelectDialog({
     <ExtensionDialogShell
       title={displayTitle}
       subtitle={displaySubtitle}
-      maxWidthClass="max-w-[440px]"
+      headerRight={<QuestionnaireCountdownBadge deadlineAt={deadlineAt} timeoutMs={timeoutMs} compact />}
+      maxWidthClass={split.details && split.details.length > 140 ? 'max-w-xl' : 'max-w-[440px]'}
       suspendable={suspendable}
       onSuspend={suspendable ? onSuspend : onCancel}
     >
@@ -493,6 +517,8 @@ export function ExtensionUIHost() {
           key={pending.id}
           title={pending.title}
           options={pending.options}
+          deadlineAt={pending.deadlineAt}
+          timeoutMs={pending.timeoutMs}
           suspendable={canSuspend}
           onPick={(value) => answer({ value })}
           onSuspend={suspendActiveDialog}

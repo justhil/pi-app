@@ -10,6 +10,7 @@ import { cn } from '@renderer/lib/utils'
 export function ExtensionDialogShell({
   title,
   subtitle,
+  headerRight,
   maxWidthClass = 'max-w-lg',
   onSuspend,
   suspendable = true,
@@ -17,6 +18,7 @@ export function ExtensionDialogShell({
 }: {
   title: ReactNode
   subtitle?: ReactNode
+  headerRight?: ReactNode
   maxWidthClass?: string
   onSuspend: () => void
   suspendable?: boolean
@@ -57,20 +59,23 @@ export function ExtensionDialogShell({
       >
         <div className="flex shrink-0 items-start justify-between gap-2 border-b border-border/60 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-[14px] font-semibold leading-snug text-foreground">{title}</h2>
+            <h2 id={titleId} className="break-words text-[14px] font-semibold leading-snug text-foreground">{title}</h2>
             {subtitle && (
-              <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{subtitle}</div>
+              <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{subtitle}</div>
             )}
           </div>
-          <button
-            type="button"
-            title={closeLabel}
-            aria-label={closeLabel}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
-            onClick={onSuspend}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {headerRight}
+            <button
+              type="button"
+              title={closeLabel}
+              aria-label={closeLabel}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+              onClick={onSuspend}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <div className="studio-thin-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3.5">
           {children}
